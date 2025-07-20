@@ -1,6 +1,6 @@
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from sqlalchemy.orm import sessionmaker
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import threading
@@ -75,7 +75,8 @@ class DBEngine:
         return self._engine
 
 
-def get_db():
+@asynccontextmanager
+async def get_db_session():
     db = DBEngine().SessionLocal()
     try:
         yield db

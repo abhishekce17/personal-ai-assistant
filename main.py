@@ -1,12 +1,9 @@
-from utils.llm_models import OpenRouter_Agents, Ollama_LLM, Cohere_Agents
-from Agents.open_router_agents import Agents as OpenRouterAgent
-from Agents.cohere_agent import Agents as CohereAgent
-from Agents.local_ollama_llm_agents import Agents
-from langgraph.checkpoint.redis import RedisSaver
+from app.core.llm_models import OpenRouter_Agents, Ollama_LLM, Cohere_Agents
+from app.agents.open_router_agents import Agents as OpenRouterAgent
+from app.agents.cohere_agent import Agents as CohereAgent
+from app.agents.local_ollama_llm_agents import Agents
 from dotenv import load_dotenv
-import traceback
 import logging
-import os
 
 load_dotenv()
 
@@ -16,13 +13,13 @@ load_dotenv()
 #     print("Type 'exit', 'quit', or 'q' to stop the conversation.\n")
 
 #     try:
-#         # agent_instance = CohereAgent()
-#         # open_router_agent_instance = OpenRouterAgent()
-#         agent_instance = Agents()
-#         # agent = agent_instance.mistral_agent()
-#         # agent = agent_instance.mistral_agent()
+#         # agent_llm = CohereAgent()
+#         # open_router_agent_llm = OpenRouterAgent()
+#         agent_llm = Agents()
+#         # agent = agent_llm.mistral_agent()
+#         # agent = agent_llm.mistral_agent()
 
-#         # agent = open_router_agent_instance.open_router_agent(
+#         # agent = open_router_agent_llm.open_router_agent(
 #         #     model=OpenRouter_Agents.DEEPSEEK_V3.value, enable_memory=True
 #         # )
 
@@ -31,11 +28,11 @@ load_dotenv()
 
 #         with RedisSaver.from_conn_string(redis_uri) as checkpointer:
 #             checkpointer.setup()
-#             # agent = agent_instance.cohere_agent(
+#             # agent = agent_llm.cohere_agent(
 #             #     enable_memory=True, memory_instance=checkpointer
 #             # )
 
-#             agent = agent_instance.local_ollama_agent(
+#             agent = agent_llm.local_ollama_agent(
 #                 memory_instance=checkpointer,
 #                 model=Ollama_LLM.LLAMA3_1.value,
 #                 enable_memory=True,
@@ -85,11 +82,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-class SocketAgent:
-    __checkpointer = None  # shared RedisSaver
+class SocketAgentLLM:
 
     def __init__(self):
-        self.agent = None
+        self.llm = None
         self._model_name = None
         self._is_setup = False
 
@@ -98,33 +94,21 @@ class SocketAgent:
             return self._model_name
 
         try:
-            cls = type(self)
-            if cls.__checkpointer is None:
-                with RedisSaver.from_conn_string(
-                    os.getenv("LOCAL_REDIS_URL")
-                ) as redis_saver:
-                    redis_saver.setup()
-                    cls.__checkpointer = redis_saver
-
             if model_name in Cohere_Agents._value2member_map_:
-                agent_instance = CohereAgent()
+                agent_llm = CohereAgent()
             elif model_name in OpenRouter_Agents._value2member_map_:
-                agent_instance = OpenRouterAgent()
+                agent_llm = OpenRouterAgent()
             # only for local testing while development with local llm
             elif model_name in Ollama_LLM._value2member_map_:
-                agent_instance = Agents()
+                agent_llm = Agents()
             else:
                 raise ValueError(f"Unsupported model: {model_name}")
 
             logger.info("model selected successfully, now initializing agent...")
 
-            self.agent = agent_instance.create_agent(
-                memory_instance=cls.__checkpointer,
-                model=model_name,
-                enable_memory=True,
-            )
+            self.llm = agent_llm.llm_setup(model=model_name)
 
-            self._model_name = agent_instance.get_model()
+            self._model_name = agent_llm.get_model()
             self._is_setup = True
             return self._model_name
 
@@ -132,42 +116,9 @@ class SocketAgent:
             self.cleanup()
             raise (f"Failed to setup agent with model {model_name}: {e}")
 
-    async def talk_stream(self, data: str, thread_id: str):
-        if not self._is_setup or not self.agent:
-            raise RuntimeError("Agent is not set up. Call setup() first.")
-        if not thread_id:
-            raise ValueError("user id must be provided as thread_id.")
-
-        try:
-            config = {"configurable": {"thread_id": thread_id}}
-            stream = self.agent.astream(
-                input={"messages": [("human", data)]},
-                config=config,
-            )
-            logger.info(f"Stream object: {stream}")
-
-            async for chunk in stream:
-                logger.info(f"Chunk: {repr(chunk)}")
-                try:
-                    if isinstance(chunk, dict) and "content" in chunk:
-                        yield chunk["content"]
-                    elif hasattr(chunk, "content"):
-                        yield chunk.content
-                    else:
-                        yield str(chunk)
-                except Exception as inner_e:
-                    logger.error(
-                        f"❌ Error while processing chunk: {inner_e}", exc_info=True
-                    )
-                    yield f"[CHUNK ERROR]: {str(inner_e)}"
-
-        except Exception as e:
-            logger.error(f"❌ Error during agent stream:\n{traceback.format_exc()}")
-            yield f"[STREAM ERROR]: {type(e).__name__} - {str(e)}"
-
     def cleanup(self):
         """Cleans only this agent, NOT the shared Redis connection"""
-        self.agent = None
+        self.llm = None
         self._model_name = None
         self._is_setup = False
 
@@ -176,16 +127,3 @@ class SocketAgent:
         if not self._model_name:
             raise RuntimeError("Model name is not set. Call setup() first.")
         return self._model_name
-
-    @classmethod
-    def cleanup_shared_redis(cls):
-        """Closes the shared Redis connection once"""
-        if cls.__checkpointer:
-            try:
-                cls.__checkpointer.delete_thread()
-                cls.__checkpointer.close()
-                logger.info("✅ Shared Redis connection closed")
-            except Exception as e:
-                logger.error(f"❌ Failed to close Redis connection: {e}")
-            finally:
-                cls.__checkpointer = None

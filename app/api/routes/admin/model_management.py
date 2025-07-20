@@ -3,7 +3,7 @@ from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from db.models import ModelCreate, Model
 from utils.db import unset_default_for_all
-from utils.security import require_admin_role_ids
+from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
 
@@ -13,9 +13,10 @@ router = APIRouter()
 
 MASTER_ADMIN_ID = os.getenv("MASTER_ADMIN_ID")
 
+
 @router.post("/create", summary="Create a new AI model")
 def create_model(
-    model_data : ModelCreate,
+    model_data: ModelCreate,
     request: Request = None,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
@@ -25,7 +26,7 @@ def create_model(
     if existing:
         raise HTTPException(status_code=409, detail="Model already exists")
 
-    if(model_data.is_default):
+    if model_data.is_default:
         unset_default_for_all(db, Model)
 
     model = Model(
@@ -34,14 +35,17 @@ def create_model(
         model_provider=model_data.model_provider,
         model_image=model_data.model_image,
         tool_support=model_data.tool_support,
-        is_default=model_data.is_default
+        is_default=model_data.is_default,
     )
 
     db.add(model)
     db.commit()
     db.refresh(model)
 
-    return {"message": "Model created", "model": {"id": model.id, "name": model.model_name}}
+    return {
+        "message": "Model created",
+        "model": {"id": model.id, "name": model.model_name},
+    }
 
 
 @router.get("/list", summary="List all models")

@@ -3,7 +3,7 @@ from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from db.models import Plan, PlanCreate
 from utils.db import unset_default_for_all
-from utils.security import require_admin_role_ids
+from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
 
@@ -13,9 +13,10 @@ MASTER_ADMIN_ID = os.getenv("MASTER_ADMIN_ID")
 
 router = APIRouter()
 
+
 @router.post("/create", summary="Create a new plan")
 def create_plan(
-    plan_data : PlanCreate,
+    plan_data: PlanCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
@@ -39,9 +40,8 @@ def create_plan(
     db.refresh(plan)
 
     return {"message": "Plan created", "plan": {"id": plan.id, "name": plan.name}}
- 
 
- 
+
 @router.get("/list", summary="List all plans")
 def list_plans(
     request: Request,
@@ -71,7 +71,7 @@ def delete_plan(
 @router.put("/update/{plan_id}", summary="Update an existing plan")
 def update_plan(
     plan_id: str,
-    plan_data : PlanCreate,
+    plan_data: PlanCreate,
     request: Request = None,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
@@ -82,7 +82,11 @@ def update_plan(
 
     if plan_data.name:
         # Ensure unique name
-        name_exists = db.query(Plan).filter(Plan.name == plan_data.name, Plan.id != plan_id).first()
+        name_exists = (
+            db.query(Plan)
+            .filter(Plan.name == plan_data.name, Plan.id != plan_id)
+            .first()
+        )
         if name_exists:
             raise HTTPException(status_code=409, detail="Plan name already exists")
         plan.name = plan_data.name
@@ -97,9 +101,12 @@ def update_plan(
     db.commit()
     db.refresh(plan)
 
-    return {"message": "Plan updated", "plan": {
-        "id": plan.id,
-        "name": plan.name,
-        "price": plan.price,
-        "description": plan.description
-    }}
+    return {
+        "message": "Plan updated",
+        "plan": {
+            "id": plan.id,
+            "name": plan.name,
+            "price": plan.price,
+            "description": plan.description,
+        },
+    }

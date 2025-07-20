@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from db.models import Login, Register, User, Plan, PlanModel, Model
-from utils.security import hash_password, create_jwt_token
+from app.core.security import hash_password, create_jwt_token
 from sqlalchemy.orm import Session
-from utils.security import verify_password
+from app.core.security import verify_password
 
 router = APIRouter()
 
@@ -49,25 +49,28 @@ def register(register: Register, request: Request):
     existing_user = db.query(User).filter(User.email == register.email).first()
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User already exists"
+            status_code=status.HTTP_409_CONFLICT, detail="User already exists"
         )
 
-    default_plan = db.query(Plan).filter((Plan.is_default == True) & (Plan.is_active == True)).first()
+    default_plan = (
+        db.query(Plan)
+        .filter((Plan.is_default == True) & (Plan.is_active == True))
+        .first()
+    )
     if not default_plan:
         raise HTTPException(status_code=400, detail="No active plan found")
 
     mapping = (
         db.query(PlanModel)
-        .filter(
-            PlanModel.plan_id == default_plan.id
-        )
+        .filter(PlanModel.plan_id == default_plan.id)
         .join(Model)
         .filter((Model.is_default == True) & (Model.is_active == True))
         .first()
     )
     if not mapping:
-        raise HTTPException(status_code=400, detail=f"No default model for {default_plan.name} plan")
+        raise HTTPException(
+            status_code=400, detail=f"No default model for {default_plan.name} plan"
+        )
 
     new_user = User(
         name=register.name,
@@ -76,7 +79,7 @@ def register(register: Register, request: Request):
         terms_and_condition=register.terms_and_condition,
         current_plan_id=default_plan.id,
         default_model_id=mapping.model_id,
-        avatar=""
+        avatar="",
     )
 
     db.add(new_user)

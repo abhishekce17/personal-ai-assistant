@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, status
 from db.models import User
 from sqlalchemy.orm import Session
 from fastapi import Depends
-from utils.security import get_current_user, verify_password, hash_password
+from app.core.security import get_current_user, verify_password, hash_password
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ def update_user(
     name: str = None,
     email: str = None,
     avatar_id: str = None,
-    default_model_id: str = None
+    default_model_id: str = None,
 ):
     db: Session = request.state.db
     if name:

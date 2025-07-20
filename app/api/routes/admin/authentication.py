@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy.orm import Session
 from db.models import Admin, AdminRegister, Login
-from utils.security import hash_password, verify_password, create_jwt_token
+from app.core.security import hash_password, verify_password, create_jwt_token
 
 router = APIRouter()
+
 
 @router.post("/login")
 def admin_login(login: Login, request: Request):
@@ -26,6 +27,7 @@ def admin_login(login: Login, request: Request):
         "message": "Admin login successful",
         "token": token,
     }
+
 
 @router.post("/register")
 def admin_register(register: AdminRegister, request: Request):
