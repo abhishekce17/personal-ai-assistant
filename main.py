@@ -4,6 +4,7 @@ from Agents.cohere_agent import Agents as CohereAgent
 from Agents.local_ollama_llm_agents import Agents
 from langgraph.checkpoint.redis import RedisSaver
 from dotenv import load_dotenv
+import traceback
 import logging
 import os
 
@@ -131,22 +132,38 @@ class SocketAgent:
             self.cleanup()
             raise (f"Failed to setup agent with model {model_name}: {e}")
 
-    def talk(self, data: str, thread_id: str):
-        """Talks to the agent with the given data and thread_id."""
+    async def talk_stream(self, data: str, thread_id: str):
         if not self._is_setup or not self.agent:
             raise RuntimeError("Agent is not set up. Call setup() first.")
         if not thread_id:
             raise ValueError("user id must be provided as thread_id.")
+
         try:
             config = {"configurable": {"thread_id": thread_id}}
-            result = self.agent.invoke(
-                input={"messages": [("human", data)]}, config=config
+            stream = self.agent.astream(
+                input={"messages": [("human", data)]},
+                config=config,
             )
-            return result
+            logger.info(f"Stream object: {stream}")
+
+            async for chunk in stream:
+                logger.info(f"Chunk: {repr(chunk)}")
+                try:
+                    if isinstance(chunk, dict) and "content" in chunk:
+                        yield chunk["content"]
+                    elif hasattr(chunk, "content"):
+                        yield chunk.content
+                    else:
+                        yield str(chunk)
+                except Exception as inner_e:
+                    logger.error(
+                        f"❌ Error while processing chunk: {inner_e}", exc_info=True
+                    )
+                    yield f"[CHUNK ERROR]: {str(inner_e)}"
 
         except Exception as e:
-            logger.error(f"Error during agent talk: {e}")
-            return {"error": str(e), "messages": []}
+            logger.error(f"❌ Error during agent stream:\n{traceback.format_exc()}")
+            yield f"[STREAM ERROR]: {type(e).__name__} - {str(e)}"
 
     def cleanup(self):
         """Cleans only this agent, NOT the shared Redis connection"""
@@ -166,7 +183,7 @@ class SocketAgent:
         if cls.__checkpointer:
             try:
                 cls.__checkpointer.delete_thread()
-                cls.__checkpointer
+                cls.__checkpointer.close()
                 logger.info("✅ Shared Redis connection closed")
             except Exception as e:
                 logger.error(f"❌ Failed to close Redis connection: {e}")

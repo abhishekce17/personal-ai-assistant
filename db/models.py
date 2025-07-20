@@ -1,7 +1,9 @@
-from pydantic import BaseModel, EmailStr
+from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, DateTime, Integer, String, Boolean
+from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
+from sqlalchemy.orm import relationship
+from typing import Optional
 import uuid
 
 
@@ -11,15 +13,54 @@ class Login(BaseModel):
     password: str
 
 
+class AdminRegister(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role_id: str  # from admin_roles table
+
 class Register(BaseModel):
     email: EmailStr
     password: str
     name: str
     terms_and_condition: bool
 
+class PlanCreate(BaseModel):
+    name: str
+    price: int
+    description: Optional[str]
+    is_default: Optional[bool]
 
+
+class PlanUpdate(BaseModel):
+    name: Optional[str]
+    slug: Optional[str]
+    price: Optional[int]
+    description: Optional[str]
+    is_default: Optional[bool]
+class ModelCreate(BaseModel):
+    model_name: str
+    model_description: str
+    model_provider: str
+    tool_support: Optional[bool]
+    model_image : Optional[str]
+    is_default : Optional[bool]
+
+class PlanModelCreate(BaseModel):
+    plan_id: str
+    model_id: str
+
+class PlanToolCreate(BaseModel):
+    plan_id: str
+    tool_id: str
+
+class FeatureCreate(BaseModel):
+    plan_id: str
+    feature_key: str
+    feature_value: Optional[str]
+
+#Database related models
 Base = declarative_base()
-
 
 class BaseMixin:
     id = Column(
@@ -36,6 +77,25 @@ class BaseMixin:
         onupdate=lambda: datetime.now(timezone.utc),
     )
     is_active = Column(Boolean, default=True)
+
+
+# Admin Table
+class Admin(BaseMixin, Base):
+    __tablename__ = "admins"
+
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password = Column(String, nullable=False)
+    role_id = Column(String, ForeignKey("admin_roles.id"), index=True)
+    avatar = Column(String, nullable=True)
+    role = relationship("AdminRole", backref="admins")
+
+
+class AdminRole(BaseMixin, Base):
+    __tablename__ = "admin_roles"
+
+    name = Column(String, unique=True, nullable=False) 
+    description = Column(String, nullable=True)
 
 
 # Users Table
@@ -66,6 +126,8 @@ class Model(BaseMixin, Base):
     model_provider = Column(String)
     tool_support = Column(Boolean, default=True)
     user_count = Column(Integer, default=0)
+    model_image = Column(String, nullable=True, default="")
+    is_default = Column(Boolean, default=False)
 
 
 # Plans Table
@@ -77,6 +139,7 @@ class Plan(BaseMixin, Base):
     subscription_count = Column(Integer, default=0)
     price = Column(Integer)  # in cents
     description = Column(Text)
+    is_default = Column(Boolean, default=False)
 
     users = relationship("User", back_populates="plan")
     tools = relationship("PlanTool", back_populates="plan")
@@ -92,6 +155,7 @@ class Tool(BaseMixin, Base):
     tool_description = Column(Text)
     tool_provider = Column(String)
     user_count = Column(Integer, default=0)
+    tool_image = Column(String, nullable=True, default="")
 
     plans = relationship("PlanTool", back_populates="tool")
 

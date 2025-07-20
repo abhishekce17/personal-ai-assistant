@@ -1,10 +1,13 @@
 # server.py - Enhanced with Redis connection cleanup
+from routes.user import authentication, user, chat_management, chat_interaction
 from middlewares.db import db_session_middleware_with_exception_handling
+from routes.admin import authentication as admin_authentication, model_management
 from contextlib import asynccontextmanager
-from routes import authentication, user, chat_management, chat_interaction
+from routes.admin import plan_management
+from routes.admin import model_feature_tools_plan_mapping
+from fastapi import FastAPI
 from db.base import init_db
 from db.db import engine
-from fastapi import FastAPI
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("🔄 Starting application shutdown...")
-    from routes.chat_interaction import UserAgentManager
+    from routes.user.chat_interaction import UserAgentManager
     from main import SocketAgent  # Update import
 
     UserAgentManager.cleanup_all()
@@ -28,6 +31,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+admin = FastAPI(lifespan=lifespan)
 
 app.middleware("http")(db_session_middleware_with_exception_handling)
 
@@ -38,6 +42,14 @@ app.include_router(
     chat_interaction.router, prefix="/interaction", tags=["Chat Interaction"]
 )
 
+admin.middleware("http")(db_session_middleware_with_exception_handling)
+
+admin.include_router(admin_authentication.router, prefix="/auth", tags=["Admin Auth"])
+admin.include_router(plan_management.router, prefix="/plan", tags=["Plan Management"])
+admin.include_router(model_management.router, prefix="/model", tags=["Model Management"])
+admin.include_router(model_feature_tools_plan_mapping.router, prefix="/model-feature-tools-plan-mapping", tags=["Model Feature Tools Plan Mapping"])
+
+app.mount(path="/admin", app=admin, name="Admin")
 
 @app.get("/health")
 async def health_check():
@@ -47,5 +59,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

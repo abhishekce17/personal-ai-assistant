@@ -1,7 +1,7 @@
-from fastapi import HTTPException, Header, Request, status
+from fastapi import HTTPException, Header, Request, status, Depends
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
-from db.models import User
+from db.models import User, Admin
 import bcrypt
 import jwt
 import os
@@ -68,3 +68,27 @@ def get_current_user(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+def get_current_admin(request: Request) -> Admin:
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    token = token.removeprefix("Bearer ").strip()
+    payload = verify_jwt_token(token)
+    admin_id = payload.get("id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    db: Session = request.state.db
+    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    if not admin or not admin.is_active:
+        raise HTTPException(status_code=403, detail="Admin not found")
+    
+    return admin
+
+def require_admin_role_ids(*allowed_ids: str):
+    def _checker(admin: Admin = Depends(get_current_admin)):
+        if admin.role_id not in allowed_ids:
+            raise HTTPException(status_code=403, detail="Unauthorized admin")
+        return admin
+    return _checker

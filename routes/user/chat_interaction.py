@@ -1,8 +1,8 @@
 # routes/chat_interaction.py - Fixed WebSocket Handler
+import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
 from utils.security import verify_jwt_token
-from utils.llm_models import Cohere_Agents
-from db.models import User
+from db.models import Model, User, PlanModel
 from db.db import DBEngine
 import logging
 import threading
@@ -67,11 +67,6 @@ class UserAgentManager:
                         del cls._user_agents[id]
 
     @classmethod
-    def get_active_connections_count(cls) -> int:
-        with cls._lock:
-            return len(cls._user_agents)
-
-    @classmethod
     def cleanup_all(cls):
         with cls._lock:
             user_ids = list(cls._user_agents.keys())
@@ -85,6 +80,11 @@ class UserAgentManager:
 
             cls._user_agents.clear()
             logger.info("✅ All Redis connections cleaned up")
+
+    @classmethod
+    def get_active_connections_count(cls):
+        with cls._lock:
+            return len(cls._user_agents)
 
 
 @router.websocket("/chat")
@@ -113,63 +113,89 @@ async def websocket_endpoint(websocket: WebSocket):
             db = DBEngine().SessionLocal()
 
             try:
-                user = db.query(User).filter(User.id == id).first()
+                user = (
+                    db.query(User.default_model_id, User.current_plan_id)
+                    .filter((User.id == id) & (User.is_active == True))
+                    .first()
+                )
                 if not user:
                     logger.warning(f"User not found: {id}")
                     await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                     return
 
-                default_model = user.default_model or Cohere_Agents.COMMAND_A.value
-                logger.info(
-                    f"🔌 WebSocket connection established for user: {user.email}"
+                default_model_id = user.default_model_id
+                current_plan_id = user.current_plan_id
+
+                authorized_plan_model = (
+                    db.query(Model.model_name)
+                    .join(PlanModel, PlanModel.model_id == Model.id)
+                    .filter(
+                        (PlanModel.model_id == default_model_id)
+                        & (PlanModel.plan_id == current_plan_id)
+                        & (PlanModel.is_active == True)
+                    )
+                    .scalar()
                 )
 
+                if not authorized_plan_model:
+                    logger.warning(f"Unauthorized model for user: {id}")
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
+
+                logger.info(f"WebSocket connection established for user: {id}")
                 socket_agent = UserAgentManager.get_user_agent(
-                    id, model_name=default_model
+                    id, model_name=authorized_plan_model
                 )
                 model = socket_agent.get_model_name()
 
-                active_connections = UserAgentManager.get_active_connections_count()
-                logger.info(f"📊 Total active Redis connections: {active_connections}")
+                await websocket.send_text(f"Connected as {id} using {model}")
 
-                await websocket.send_text(f"Connected as {user.email} using {model}")
+                thread_id = uuid.uuid4()
+                # while True:
+                #     try:
+                #         data = await websocket.receive_text()
+                #         response = socket_agent.talk(data, thread_id=str(thread_id))
+
+                #         if "messages" in response and response["messages"]:
+                #             last_message = response["messages"][-1]
+                #             if (
+                #                 isinstance(last_message, tuple)
+                #                 and last_message[0] == "ai"
+                #             ):
+                #                 await websocket.send_text(f"{model}: {last_message[1]}")
+                #             elif hasattr(last_message, "content"):
+                #                 await websocket.send_text(
+                #                     f"{model}: {last_message.content}"
+                #                 )
+                #             else:
+                #                 await websocket.send_text(
+                #                     f"{model}: No response generated."
+                #                 )
+                #         else:
+                #             await websocket.send_text(
+                #                 f"{model}: No response generated."
+                #             )
+
+                #     except WebSocketDisconnect:
+                #         logger.info(f"🔌 Client {id} disconnected")
+                #         break
+                #     except Exception as e:
+                #         logger.error(f"❌ Error processing message for {id}: {e}")
+                #         await websocket.send_text(f"Error: {str(e)}")
 
                 while True:
                     try:
                         data = await websocket.receive_text()
-                        logger.debug(
-                            f"📥 Received message from {user.email}: {data[:50]}..."
-                        )
-
-                        response = socket_agent.talk(data, thread_id=id)
-
-                        if "messages" in response and response["messages"]:
-                            last_message = response["messages"][-1]
-                            if (
-                                isinstance(last_message, tuple)
-                                and last_message[0] == "ai"
-                            ):
-                                await websocket.send_text(f"{model}: {last_message[1]}")
-                            elif hasattr(last_message, "content"):
-                                await websocket.send_text(
-                                    f"{model}: {last_message.content}"
-                                )
-                            else:
-                                await websocket.send_text(
-                                    f"{model}: No response generated."
-                                )
-                        else:
-                            await websocket.send_text(
-                                f"{model}: No response generated."
-                            )
+                        async for chunk in socket_agent.talk_stream(
+                            data, thread_id=str(thread_id)
+                        ):
+                            await websocket.send_text(f"{model}: {chunk}")
 
                     except WebSocketDisconnect:
-                        logger.info(f"🔌 Client {user.email} disconnected")
+                        logger.info(f"🔌 Client {id} disconnected")
                         break
                     except Exception as e:
-                        logger.error(
-                            f"❌ Error processing message for {user.email}: {e}"
-                        )
+                        logger.error(f"❌ Error processing message for {id}: {e}")
                         await websocket.send_text(f"Error: {str(e)}")
 
             finally:
