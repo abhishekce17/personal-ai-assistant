@@ -1,9 +1,19 @@
-from sqlalchemy import Column, DateTime, Integer, String, Boolean, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Integer,
+    String,
+    Boolean,
+    ForeignKey,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from typing import Optional
+from enum import Enum
 import uuid
 
 
@@ -19,11 +29,13 @@ class AdminRegister(BaseModel):
     password: str
     role_id: str  # from admin_roles table
 
+
 class Register(BaseModel):
     email: EmailStr
     password: str
     name: str
     terms_and_condition: bool
+
 
 class PlanCreate(BaseModel):
     name: str
@@ -38,29 +50,36 @@ class PlanUpdate(BaseModel):
     price: Optional[int]
     description: Optional[str]
     is_default: Optional[bool]
+
+
 class ModelCreate(BaseModel):
     model_name: str
     model_description: str
     model_provider: str
     tool_support: Optional[bool]
-    model_image : Optional[str]
-    is_default : Optional[bool]
+    model_image: Optional[str]
+    is_default: Optional[bool]
+
 
 class PlanModelCreate(BaseModel):
     plan_id: str
     model_id: str
 
+
 class PlanToolCreate(BaseModel):
     plan_id: str
     tool_id: str
+
 
 class FeatureCreate(BaseModel):
     plan_id: str
     feature_key: str
     feature_value: Optional[str]
 
-#Database related models
+
+# Database related models
 Base = declarative_base()
+
 
 class BaseMixin:
     id = Column(
@@ -94,7 +113,7 @@ class Admin(BaseMixin, Base):
 class AdminRole(BaseMixin, Base):
     __tablename__ = "admin_roles"
 
-    name = Column(String, unique=True, nullable=False) 
+    name = Column(String, unique=True, nullable=False)
     description = Column(String, nullable=True)
 
 
@@ -114,7 +133,6 @@ class User(BaseMixin, Base):
     default_model = relationship("Model")
     plan_history = relationship("UserPlanHistory", back_populates="user")
     chat_sessions = relationship("ChatSessionEmbedding", back_populates="user")
-
 
 
 # Models Table
@@ -170,7 +188,7 @@ class PlanTool(BaseMixin, Base):
     plan = relationship("Plan", back_populates="tools")
     tool = relationship("Tool", back_populates="plans")
 
-    __table_args__ = (UniqueConstraint('plan_id', 'tool_id', name='_plan_tool_uc'),)
+    __table_args__ = (UniqueConstraint("plan_id", "tool_id", name="_plan_tool_uc"),)
 
 
 # Plan–Model mapping (Many-to-Many)
@@ -183,7 +201,7 @@ class PlanModel(BaseMixin, Base):
     plan = relationship("Plan", back_populates="models")
     model = relationship("Model")
 
-    __table_args__ = (UniqueConstraint('plan_id', 'model_id', name='_plan_model_uc'),)
+    __table_args__ = (UniqueConstraint("plan_id", "model_id", name="_plan_model_uc"),)
 
 
 # Features per plan (Key-value)
@@ -196,7 +214,9 @@ class Feature(BaseMixin, Base):
 
     plan = relationship("Plan", back_populates="features")
 
-    __table_args__ = (UniqueConstraint('plan_id', 'feature_key', name='_plan_feature_uc'),)
+    __table_args__ = (
+        UniqueConstraint("plan_id", "feature_key", name="_plan_feature_uc"),
+    )
 
 
 # Optional: Plan history tracking
@@ -211,19 +231,20 @@ class UserPlanHistory(BaseMixin, Base):
     user = relationship("User", back_populates="plan_history")
     plan = relationship("Plan")
 
+
 class BillingInformation(BaseMixin, Base):
     __tablename__ = "billing_information"
 
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     plan_id = Column(String, ForeignKey("plans.id"), nullable=False, index=True)
 
-    billing_cycle = Column(String, nullable=False)          # 'monthly', 'yearly'
+    billing_cycle = Column(String, nullable=False)  # 'monthly', 'yearly'
     amount_cents = Column(Integer, nullable=False)
     currency = Column(String, default="USD")
 
-    payment_method = Column(String, nullable=False)         # 'card', 'UPI', etc.
-    payment_status = Column(String, default="pending")      # 'paid', 'failed', etc.
-    transaction_id = Column(String, unique=True)            # from payment gateway
+    payment_method = Column(String, nullable=False)  # 'card', 'UPI', etc.
+    payment_status = Column(String, default="pending")  # 'paid', 'failed', etc.
+    transaction_id = Column(String, unique=True)  # from payment gateway
     invoice_url = Column(String)
 
     billing_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -234,20 +255,27 @@ class BillingInformation(BaseMixin, Base):
     user = relationship("User")
     plan = relationship("Plan")
 
+
 class ChatSessionEmbedding(BaseMixin, Base):
     __tablename__ = "chat_session_embeddings"
 
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     thread_id = Column(String, unique=True, index=True, nullable=False)
 
-    content = Column(Text, nullable=False)     # full chat as JSON or text
-    summary = Column(Text, nullable=True)      # optional summarized version
+    content = Column(Text, nullable=False)  # full chat as JSON or text
+    summary = Column(Text, nullable=True)  # optional summarized version
 
-    embedding_id = Column(String, unique=True, index=True, nullable=False)  # links to vector row in Pinecone
-    source = Column(String, default="chat")     # for categorization or doc ingestion
+    embedding_id = Column(
+        String, unique=True, index=True, nullable=False
+    )  # links to vector row in Pinecone
+    source = Column(String, default="chat")  # for categorization or doc ingestion
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     is_active = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="chat_sessions")

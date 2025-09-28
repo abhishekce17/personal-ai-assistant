@@ -92,11 +92,4 @@ def get_current_datetime() -> str:
 
 
 # Create tools list with decorated functions
-tools = [
-    add_fn,
-    subtract_fn,
-    multiply_fn,
-    divide_fn,
-    get_current_datetime
-]
-
+tools = [add_fn, subtract_fn, multiply_fn, divide_fn, get_current_datetime]

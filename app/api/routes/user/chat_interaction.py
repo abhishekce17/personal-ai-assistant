@@ -6,6 +6,8 @@ from db.models import Model, User, PlanModel
 from app.core.security import verify_jwt_token
 from app.core.config import RedisCheckpoint
 from main import SocketAgentLLM
+from utils.types import ConversationType
+from app.Tools.example_tools import tools as example_tools
 from dotenv import load_dotenv
 from db.db import get_db_session
 from typing import Dict
@@ -20,6 +22,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 redis_saver = RedisCheckpoint.get_saver()
+
+convo_type: ConversationType = ConversationType.NON_STREAM
 
 
 class UserAgentManager:
@@ -166,6 +170,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     enable_memory=True,
                     memory_instance=redis_saver,
                     llm=socket_llm.llm,
+                    tools_list=example_tools,
                 )
                 socket_agent.agent_creator()
 
@@ -182,26 +187,27 @@ async def websocket_endpoint(websocket: WebSocket):
                         response_started = False
                         full_response = ""
 
-                        try:
-                            async for chunk in socket_agent.talk_stream(
-                                data, thread_id=str(thread_id)
-                            ):
-                                if chunk:
-                                    if not response_started:
-                                        await websocket.send_text(f"\r{model}: ")
-                                        response_started = True
+                        if convo_type == ConversationType.STREAM:
+                            try:
+                                async for chunk in socket_agent.talk_stream(
+                                    data, thread_id=str(thread_id)
+                                ):
+                                    if chunk:
+                                        if not response_started:
+                                            await websocket.send_text(f"\r{model}: ")
+                                            response_started = True
 
-                                    await websocket.send_text(chunk)
-                                    full_response += chunk
+                                        await websocket.send_text(chunk)
+                                        full_response += chunk
 
-                        except Exception as streaming_error:
-                            logger.error(
-                                f"Streaming error for user {id}: {streaming_error}"
-                            )
-                            await websocket.send_text(
-                                f"\n❌ Streaming error: {str(streaming_error)}"
-                            )
-
+                            except Exception as streaming_error:
+                                logger.error(
+                                    f"Streaming error for user {id}: {streaming_error}"
+                                )
+                                await websocket.send_text(
+                                    f"\n❌ Streaming error: {str(streaming_error)}"
+                                )
+                        else:
                             # Fallback to non-streaming response
                             try:
                                 fallback_response = socket_agent.talk_non_stream(

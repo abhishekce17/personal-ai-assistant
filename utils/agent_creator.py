@@ -2,12 +2,12 @@ from langchain.callbacks.base import BaseCallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from concurrent.futures import ThreadPoolExecutor
-from app.Tools.example_tools import tools
 from typing import Any, Dict, List
 import multiprocessing
 import traceback
 import asyncio
 import logging
+import redis
 import queue
 
 logging.basicConfig(level=logging.INFO)
@@ -98,13 +98,13 @@ class AgentCreator:
                 else MemorySaver()
             )
             agent = create_react_agent(
-                self.llm, tools=self.tools_list + tools, checkpointer=memory
+                self.llm, tools=self.tools_list, checkpointer=memory
             )
             print("Agent initialized successfully with memory!\n")
             self.agent = agent
             return agent
         else:
-            agent = create_react_agent(self.llm, tools=self.tools_list + tools)
+            agent = create_react_agent(self.llm, tools=self.tools_list)
             print("Agent initialized successfully!\n")
             self.agent = agent
             return agent
