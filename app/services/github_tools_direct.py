@@ -1,24 +1,19 @@
-# from core.base import CommonGitToolBase
+from app.core.base import CommonGitToolBase
 import github
 import requests
 from typing import Any, Dict, Optional, List
-from dotenv import load_dotenv
-import os
-
-import json
-
-load_dotenv()
-
-GITHUB_PERSONAL_ACCESS_TOKEN = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
 
 
-# class Github_Tools_Direct(CommonGitToolBase):
-class Github_Tools_Direct:  # Only for testing purpose
-    def __init__(self, personal_access_token=GITHUB_PERSONAL_ACCESS_TOKEN):
+class Github_Tools_Direct(CommonGitToolBase):
+    # class Github_Tools_Direct:  # Only for testing purpose
+    def __init__(self, personal_access_token: str = None):
         auth = github.Auth.Token(personal_access_token)
         self.github = github.Github(auth=auth)
-        self.user = self.github.get_user()
-        self.repos = self.user.get_repos()
+        try:
+            self.user = self.github.get_user()
+            self.repos = self.user.get_repos()
+        except github.GithubException as e:
+            raise ValueError(f"Invalid GitHub PAT: {e.data.get('message', str(e))}")
 
     def get_repo_list(self) -> Dict[str, Any]:
         try:
@@ -534,7 +529,7 @@ class Github_Tools_Direct:  # Only for testing purpose
 
 
 # Example usage:
-github_tools = Github_Tools_Direct()
+# github_tools = Github_Tools_Direct()
 # repo_list = github_tools.get_repo_list() --------------- working
 # repo_structure = github_tools.get_repo_structure(
 #     "CodeXCoder", directory_path="src/app/account"

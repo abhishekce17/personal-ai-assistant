@@ -129,7 +129,7 @@ class CommonGitToolBase(ABC):
         pass
 
     @abstractmethod
-    def role_back_to_commits_sha(
+    def rollback_to_commit(
         self, repo_name: str, branch_name: str, commit_sha: str
     ) -> Dict[str, Any]:
         """Revert the repository to a specific commit SHA"""

@@ -7,7 +7,8 @@ from app.core.security import verify_jwt_token
 from app.core.config import RedisCheckpoint
 from main import SocketAgentLLM
 from utils.types import ConversationType
-from app.Tools.example_tools import tools as example_tools
+import importlib
+import json
 from dotenv import load_dotenv
 from db.db import get_db_session
 from typing import Dict
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 redis_saver = RedisCheckpoint.get_saver()
 
 convo_type: ConversationType = ConversationType.NON_STREAM
+
+enabled_tools = ["github"]  # Moking for now, can be dynamic based on user plan
 
 
 class UserAgentManager:
@@ -166,11 +169,30 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(f"Connected as {id} using {model}")
 
                 thread_id = uuid.uuid4()
+
+                tools = []
+                try:
+                    for tool in enabled_tools:
+                        x_external_tokens = json.loads(
+                            websocket.headers.get("X-External-Tokens", "")
+                        )
+                        if tool + "_access_token" in x_external_tokens:
+                            tool_module = importlib.import_module(
+                                f"app.Tools.{tool}_tools"
+                            )
+                            if tool_module and hasattr(tool_module, "make_tools"):
+                                tools += tool_module.make_tools(
+                                    PAT=x_external_tokens[tool + "_access_token"]
+                                )
+
+                except Exception as e:
+                    logger.error(f"Error loading tools for user {id}: {e}")
+
                 socket_agent = AgentCreator(
                     enable_memory=True,
                     memory_instance=redis_saver,
                     llm=socket_llm.llm,
-                    tools_list=example_tools,
+                    tools_list=tools,
                 )
                 socket_agent.agent_creator()
 
