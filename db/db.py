@@ -21,9 +21,10 @@ target_db = "llm_chat_pdf"
 
 try:
     # Connect to default 'postgres' database
-    conn = psycopg2.connect(
-        dbname="postgres", user=user, password=password, host=host, port=port
-    )
+    # conn = psycopg2.connect(
+    #     dbname="postgres", user=user, password=password, host=host, port=port
+    # )
+    conn = psycopg2.connect(DATABASE_URL)
     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
     cur = conn.cursor()
