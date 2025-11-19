@@ -77,7 +77,7 @@ def extract_token(request: Request) -> str | None:
         return header.removeprefix("Bearer ").strip()
     
     # Cookie
-    cookie = request.cookies.get("admin_token")
+    cookie = request.cookies.get("access_token")
     if cookie:
         return cookie.strip()
 
