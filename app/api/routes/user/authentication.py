@@ -25,6 +25,11 @@ def login(login: Login, request: Request):
             detail="Eamil or password is wrong",
         )
     # Verify password
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is suppended, please contact customer support",
+        )
     verify_password(login.password, user.password)
 
     # Generate JWT token

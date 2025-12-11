@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "bcrypt>=5.0.0",
     "fastapi[standard]>=0.115.14",
     "imapclient>=3.0.1",
     "langchain-cohere>=0.4.4",
@@ -12,6 +13,7 @@ dependencies = [
     "langchain-ollama>=0.3.3",
     "langchain-openai>=0.3.25",
     "langgraph>=0.4.8",
+    "langgraph-checkpoint-redis>=0.1.2",
     "psycopg2>=2.9.10",
     "pygithub>=2.8.1",
     "pyjwt[crypto]>=2.10.1",

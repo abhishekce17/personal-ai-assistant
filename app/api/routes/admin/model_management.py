@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 from db.models import ModelCreate, Model
 from utils.db import unset_default_for_all
 from app.core.security import require_admin_role_ids
@@ -54,7 +54,7 @@ def list_models(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: Session = request.state.db
-    models = db.query(Model).all()
+    models = db.query(Model).options(defer(Model.model_description)).all()
     return models
 
 

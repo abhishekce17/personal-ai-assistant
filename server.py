@@ -5,10 +5,11 @@ from app.api.routes.admin import (
 )
 from app.api.routes.user import authentication, user, chat_management, chat_interaction
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
-from app.api.routes.admin import model_feature_tools_plan_mapping
+from app.api.routes.admin import model_feature_tools_plan_mapping, user_management
 from app.services.agent_lifecycle import lifespan
 from app.api.routes.admin import plan_management
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,29 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(lifespan=lifespan)
 admin = FastAPI(lifespan=lifespan)
+
+origins = [
+    "http://localhost:3000",
+]
+
+# CORS for main app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+# CORS for admin app
+admin.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 
 app.middleware("http")(db_session_middleware_with_exception_handling)
 
@@ -38,7 +62,7 @@ admin.include_router(
     prefix="/model-feature-tools-plan-mapping",
     tags=["Model Feature Tools Plan Mapping"],
 )
-
+admin.include_router(user_management.router, prefix="/user-management", tags=["User Management"])
 app.mount(path="/admin", app=admin, name="Admin")
 
 
