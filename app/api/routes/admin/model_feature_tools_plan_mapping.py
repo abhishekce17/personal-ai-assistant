@@ -6,6 +6,8 @@ from app.core.security import require_admin_role_ids
 from dotenv import load_dotenv
 import os
 
+from utils.db import activate_row, deactivate_row
+
 load_dotenv()
 
 MASTER_ADMIN_ID = os.getenv("MASTER_ADMIN_ID")
@@ -93,6 +95,19 @@ def delete_plan_model_mapping(
 
     return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
 
+@router.patch("/plan-model/{mapping_id}", summary="Activate or Deactivate a Plan-Model mapping by ID")
+def activate_deactivate_plan_model_mapping(
+    mapping_id: str,
+    is_active: bool,
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: Session = request.state.db
+
+    if( is_active ):
+        return activate_row(db, PlanModel, mapping_id)
+    elif (not is_active):
+        return deactivate_row(db, PlanModel, mapping_id)
 
 #----------------- Plan and Tools Mapping --------------------#
 
@@ -175,3 +190,17 @@ def delete_plan_tool_mapping(
     db.commit()
 
     return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
+
+@router.patch("/plan-tool/{mapping_id}", summary="Activate or Deactivate a Plan-Tool mapping by ID")
+def activate_deactivate_plan_tool_mapping(
+    mapping_id: str,
+    is_active: bool,
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: Session = request.state.db
+
+    if( is_active ):
+        return activate_row(db, PlanTool, mapping_id)
+    elif (not is_active):
+        return deactivate_row(db, PlanTool, mapping_id)

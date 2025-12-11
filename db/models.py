@@ -43,6 +43,12 @@ class PlanCreate(BaseModel):
     description: Optional[str]
     is_default: Optional[bool]
 
+class ToolCreate(BaseModel):
+    name: str
+    description: Optional[str]
+    provider: Optional[str]
+    image: Optional[str]
+
 
 class PlanUpdate(BaseModel):
     name: Optional[str]

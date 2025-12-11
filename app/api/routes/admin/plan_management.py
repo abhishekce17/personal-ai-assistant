@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from db.models import Plan, PlanCreate
-from utils.db import unset_default_for_all
+from utils.db import activate_row, deactivate_row, unset_default_for_all
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -110,3 +110,17 @@ def update_plan(
             "description": plan.description,
         },
     }
+
+@router.patch("/activate-deactivate/{plan_id}", summary="Activate or Deactivate a plan by ID")
+def activate_deactivate_plan(
+    plan_id: str,
+    is_active: bool,
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: Session = request.state.db
+
+    if( is_active ):
+        return activate_row(db, Plan, plan_id)
+    elif (not is_active):
+        return deactivate_row(db, Plan, plan_id)

@@ -16,7 +16,7 @@ from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from db.models import User, Plan
-from utils.db import unset_default_for_all
+from utils.db import activate_row, deactivate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -60,52 +60,18 @@ def get_user_details(
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@router.post("/users/{id}/activate", summary="Activate a user by ID")
+@router.patch("/users/{id}/activate", summary="Activate or Deactivate a user by ID")
 def activate_user(
+    is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: Session = request.state.db
     user_id = request.path_params["id"]
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="User ID is required")
-
-    user = db.execute(
-        select(User).filter(User.id == user_id)
-    ).scalars().first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_active = True
-    db.commit()
-
-    return {"success": True, "message": "User activated successfully"}
-
-
-@router.post("/users/{id}/deactivate", summary="Deactivate a user by ID")
-def deactivate_user(
-    request: Request,
-    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
-):
-    db: Session = request.state.db
-    user_id = request.path_params["id"]
-
-    if not user_id:
-        raise HTTPException(status_code=400, detail="User ID is required")
-    user = db.execute(
-        select(User).filter(User.id == user_id)
-    ).scalars().first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_active = False
-    db.commit()
-
-    return {"success": True, "message": "User deactivated successfully"}
-
+    if( is_active ):
+        return activate_row(db, User, user_id)
+    elif (not is_active):
+        return deactivate_row(db, User, user_id)
 
 @router.post("/users/{id}/plan/{plan_id}", summary="Change user plan by ID")
 def change_user_plan(
