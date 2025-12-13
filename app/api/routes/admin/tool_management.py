@@ -1,6 +1,7 @@
 import importlib
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from db.models import Plan, Tool, ToolCreate
 from app.core.security import require_admin_role_ids
@@ -74,7 +75,7 @@ def delete_tool(
 def update_tool(
     tool_id: str,
     tool_data: ToolCreate,
-    request: Request = None,
+    request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: Session = request.state.db
@@ -83,14 +84,6 @@ def update_tool(
         raise HTTPException(status_code=404, detail="Tool not found")
 
     if tool_data.name:
-        # Ensure unique name
-        name_exists = (
-            db.query(Tool)
-            .filter(Tool.tool_name == tool_data.name, Tool.id != tool_id)
-            .first()
-        )
-        if name_exists:
-            raise HTTPException(status_code=409, detail="Tool name already exists")
         tool.tool_name = tool_data.name
 
     if tool_data.description:
@@ -102,8 +95,12 @@ def update_tool(
     if tool_data.image:
         tool.tool_image = tool_data.image
 
-    db.commit()
-    db.refresh(tool)
+    try:
+        db.commit()
+        db.refresh(tool)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Tool name already exists")
 
     return {
         "message": "Tool updated",

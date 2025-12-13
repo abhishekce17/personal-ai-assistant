@@ -10,3 +10,9 @@ class IdentityScope(Enum):
     ORGANIZATION = "Organization"
     ENTERPRISE = "Enterprise"
     OTHER = "Other"
+
+class ArtifactFormat(Enum):
+    JSON = "application/json"
+    MARKDOWN = "text/markdown"
+    TEXT = "text/plain"
+    HTML = "text/html"

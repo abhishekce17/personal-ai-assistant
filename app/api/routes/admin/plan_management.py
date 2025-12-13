@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from db.models import Plan, PlanCreate
+from sqlalchemy.exc import IntegrityError
 from utils.db import activate_row, deactivate_row, unset_default_for_all
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
@@ -72,7 +73,7 @@ def delete_plan(
 def update_plan(
     plan_id: str,
     plan_data: PlanCreate,
-    request: Request = None,
+    request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: Session = request.state.db
@@ -81,14 +82,6 @@ def update_plan(
         raise HTTPException(status_code=404, detail="Plan not found")
 
     if plan_data.name:
-        # Ensure unique name
-        name_exists = (
-            db.query(Plan)
-            .filter(Plan.name == plan_data.name, Plan.id != plan_id)
-            .first()
-        )
-        if name_exists:
-            raise HTTPException(status_code=409, detail="Plan name already exists")
         plan.name = plan_data.name
         plan.slug = plan_data.name.lower().replace(" ", "-")
 
@@ -98,8 +91,13 @@ def update_plan(
     if plan_data.description:
         plan.description = plan_data.description
 
-    db.commit()
-    db.refresh(plan)
+    try:
+        db.commit()
+        db.refresh(plan)
+    except IntegrityError:
+        db.rollback() # Important: Reset the session state
+        # This catches the duplicate name error efficiently
+        raise HTTPException(status_code=409, detail="Plan name already exists")
 
     return {
         "message": "Plan updated",

@@ -169,3 +169,11 @@ class CommonGitToolBase(ABC):
     # def search_issues_or_prs(self, repo_name: str, query: str) -> Dict[str, Any]:
     #     """Search issues or pull requests in the repository using keywords"""
     #     pass
+
+
+class MailToolBase(ABC):
+
+    @abstractmethod
+    def read_mail(mail_id: str) -> Dict[str, Any]:
+        """Read mail of a give mail id"""
+        pass

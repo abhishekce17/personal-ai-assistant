@@ -9,11 +9,18 @@ logger = logging.getLogger("uvicorn.error")
 
 async def db_session_middleware_with_exception_handling(request: Request, call_next):
     db: Session = DBEngine().SessionLocal()
+    request.state.db = db
+    
     try:
-        request.state.db = db  # Attach session to request
         response = await call_next(request)
-        db.commit()
+        
+        if 200 <= response.status_code < 400:
+            db.commit()
+        else:
+            db.rollback()
+            
         return response
+
     except Exception as e:
         db.rollback()
         logger.error(f"[DB] Rolled back due to error: {e}")

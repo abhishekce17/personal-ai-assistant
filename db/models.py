@@ -7,16 +7,16 @@ from sqlalchemy import (
     ForeignKey,
     Text,
     UniqueConstraint,
+    Enum
 )
 from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from typing import Optional
-from enum import Enum
 import uuid
 
-from utils.types import IdentityScope
+from utils.types import ArtifactFormat, IdentityScope
 
 
 # pydentic models for type safety
@@ -51,6 +51,20 @@ class ToolCreate(BaseModel):
     provider: Optional[str]
     image: Optional[str]
 
+class StaticdataCreate(BaseModel):
+    reference_key: str
+    artifact_payload: str
+    media_type: str
+    revision_id: Optional[int]
+    description: Optional[str]
+
+
+class StaticdataUpdate(BaseModel):
+    reference_key: Optional[str]
+    artifact_payload: Optional[str]
+    media_type: Optional[str]
+    revision_id: Optional[int]
+    description: Optional[str]
 
 class PlanUpdate(BaseModel):
     name: Optional[str]
@@ -149,7 +163,7 @@ class FederatedIdentity(BaseMixin, Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     provider = Column(String(50), nullable=False)         
     provider_account_id = Column(String(255), nullable=False) 
-    remark = Column(Enum(IdentityScope, native_enum=False), default=IdentityScope.PERSONAL)
+    remark = Column(Enum(IdentityScope,name="identity_scope_enum"), default=IdentityScope.PERSONAL)
     access_token = Column(Text, nullable=False)
     refresh_token = Column(Text, nullable=True)
     expires_at = Column(DateTime, nullable=True)
@@ -300,3 +314,22 @@ class ChatSessionEmbedding(BaseMixin, Base):
     is_active = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="chat_sessions")
+
+
+class SystemArtifact(BaseMixin, Base):
+    __tablename__ = "system_artifacts"
+
+    reference_key = Column(String(100), index=True, nullable=False)
+    revision_id = Column(Integer, default=1, nullable=False)
+    artifact_payload = Column(Text, nullable=False)
+    # Tells the frontend how to parse it: 'text/markdown', 'application/json', 'text/html'
+    media_type = Column(
+        Enum(ArtifactFormat, name="artifact_format_enum"), 
+        default=ArtifactFormat.TEXT, 
+        nullable=False
+    )
+    description = Column(String(255), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('reference_key', 'revision_id', name='uq_artifact_revision'),
+    )
