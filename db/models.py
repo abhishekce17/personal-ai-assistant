@@ -16,6 +16,8 @@ from typing import Optional
 from enum import Enum
 import uuid
 
+from utils.types import IdentityScope
+
 
 # pydentic models for type safety
 class Login(BaseModel):
@@ -139,7 +141,20 @@ class User(BaseMixin, Base):
     default_model = relationship("Model")
     plan_history = relationship("UserPlanHistory", back_populates="user")
     chat_sessions = relationship("ChatSessionEmbedding", back_populates="user")
+    federated_identities = relationship("FederatedIdentity", back_populates="user", cascade="all, delete-orphan")
 
+class FederatedIdentity(BaseMixin, Base):
+    __tablename__ = "federated_identities"
+
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String(50), nullable=False)         
+    provider_account_id = Column(String(255), nullable=False) 
+    remark = Column(Enum(IdentityScope, native_enum=False), default=IdentityScope.PERSONAL)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="federated_identities")
 
 # Models Table
 class Model(BaseMixin, Base):

@@ -114,7 +114,7 @@ class SocketAgentLLM:
 
         except Exception as e:
             self.cleanup()
-            raise (f"Failed to setup agent with model {model_name}: {e}")
+            raise ValueError(f"Failed to setup agent with model {model_name}: {e}")
 
     def cleanup(self):
         """Cleans only this agent, NOT the shared Redis connection"""

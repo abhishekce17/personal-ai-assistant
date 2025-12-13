@@ -173,8 +173,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 tools = []
                 try:
                     for tool in enabled_tools:
+                        #this external token should be hashed/encrypted in production
                         x_external_tokens = json.loads(
-                            websocket.headers.get("X-External-Tokens", "")
+                            websocket.headers.get("X-External-Tool-Tokens", "")
                         )
                         if tool + "_access_token" in x_external_tokens:
                             tool_module = importlib.import_module(
