@@ -5,7 +5,7 @@ from app.api.routes.admin import (
 )
 from app.api.routes.user import authentication, user, chat_management, chat_interaction
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
-from app.api.routes.admin import model_feature_tools_plan_mapping, user_management
+from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management
 from app.services.agent_lifecycle import lifespan
 from app.api.routes.admin import plan_management
 from fastapi import FastAPI
@@ -27,7 +27,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -36,7 +36,7 @@ admin.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -63,6 +63,8 @@ admin.include_router(
     tags=["Model Feature Tools Plan Mapping"],
 )
 admin.include_router(user_management.router, prefix="/user-management", tags=["User Management"])
+admin.include_router(tool_management.router, prefix="/tool-management", tags=["Tool Management"])
+admin.include_router(staticdata_management.router, prefix="/staticdata-management", tags=["Static Data Management"])
 app.mount(path="/admin", app=admin, name="Admin")
 
 

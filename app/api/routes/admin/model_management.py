@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.orm import Session, defer
-from db.models import ModelCreate, Model
+from db.models import ModelCreate, Model, ModelUpdate
 from utils.db import deactivate_row, unset_default_for_all, activate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
@@ -50,7 +50,7 @@ def create_model(
 @router.put("/update/{model_id}", summary="Update an existing AI model")
 def update_model(
     model_id: str,
-    model_data: ModelCreate,
+    model_data: ModelUpdate,
     request: Request = None,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
@@ -61,19 +61,22 @@ def update_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    if model_data.is_default:
+    if model_data.is_default is True:
         unset_default_for_all(db, Model)
 
-    model = Model(
-        model_name=model_data.model_name,
-        model_description=model_data.model_description,
-        model_provider=model_data.model_provider,
-        model_image=model_data.model_image,
-        tool_support=model_data.tool_support,
-        is_default=model_data.is_default,
-    )
+    if model_data.model_name is not None:
+        model.model_name = model_data.model_name
+    if model_data.model_description is not None:
+        model.model_description = model_data.model_description
+    if model_data.model_provider is not None:
+        model.model_provider = model_data.model_provider
+    if model_data.model_image is not None:
+        model.model_image = model_data.model_image
+    if model_data.tool_support is not None:
+        model.tool_support = model_data.tool_support
+    if model_data.is_default is not None:
+        model.is_default = model_data.is_default
 
-    db.add(model)
     db.commit()
     db.refresh(model)
 

@@ -82,6 +82,14 @@ class ModelCreate(BaseModel):
     model_image: Optional[str]
     is_default: Optional[bool]
 
+class ModelUpdate(BaseModel):
+    model_name: Optional[str] = None
+    model_description: Optional[str] = None
+    model_provider: Optional[str] = None
+    model_image: Optional[str] = None
+    tool_support: Optional[bool] = None
+    is_default: Optional[bool] = None
+
 
 class PlanModelCreate(BaseModel):
     plan_id: str
