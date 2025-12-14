@@ -5,7 +5,7 @@ from app.api.routes.admin import (
 )
 from app.api.routes.user import authentication, user, chat_management, chat_interaction
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
-from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management
+from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management, feature_flag_management
 from app.services.agent_lifecycle import lifespan
 from app.api.routes.admin import plan_management
 from fastapi import FastAPI
@@ -65,6 +65,7 @@ admin.include_router(
 admin.include_router(user_management.router, prefix="/user-management", tags=["User Management"])
 admin.include_router(tool_management.router, prefix="/tool-management", tags=["Tool Management"])
 admin.include_router(staticdata_management.router, prefix="/staticdata-management", tags=["Static Data Management"])
+admin.include_router(feature_flag_management.router, prefix="/feature-flag-management", tags=["Feature Flag Management"])
 app.mount(path="/admin", app=admin, name="Admin")
 
 

@@ -107,6 +107,18 @@ class FeatureCreate(BaseModel):
     feature_value: Optional[str]
 
 
+
+class FeatureFlagCreate(BaseModel):
+    reference_key: str
+    description: Optional[str]
+    revision_id: Optional[int]
+
+
+class FeatureFlagRetrieve(BaseModel):
+    reference_key: str
+    revision_id: int
+
+
 # Database related models
 Base = declarative_base()
 
@@ -340,4 +352,16 @@ class SystemArtifact(BaseMixin, Base):
 
     __table_args__ = (
         UniqueConstraint('reference_key', 'revision_id', name='uq_artifact_revision'),
+    )
+
+
+class FeatureFlag(BaseMixin, Base):
+    __tablename__ = "feature_flag"
+
+    reference_key = Column(String(100), index=True, nullable=False)
+    revision_id = Column(Integer, default=1, nullable=False)
+    description = Column(String(255), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint('reference_key', 'revision_id', name='feature_artifact_revision'),
     )

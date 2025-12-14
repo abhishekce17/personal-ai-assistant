@@ -25,15 +25,17 @@ def create_tool(
 ):
     db: Session = request.state.db
 
-    existing = db.query(Tool).filter(Tool.tool_name == tool_data.name).first()
+    tool_name_lowercase = tool_data.name.lower()
+
+    existing = db.query(Tool).filter(Tool.tool_name == tool_name_lowercase).first()
     if existing:
         raise HTTPException(status_code=409, detail="Tool already exists")
     
 
-    tool_module = importlib.import_module(f"app.Tools.{tool_data.name}_tools")
+    tool_module = importlib.import_module(f"app.Tools.{tool_name_lowercase}_tools")
     if tool_module and hasattr(tool_module, "make_tools"):
         tool = Tool(
-            tool_name=tool_data.name,
+            tool_name=tool_name_lowercase,
             tool_description=tool_data.description,
             tool_provider=tool_data.provider,
             tool_image=tool_data.image,
