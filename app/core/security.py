@@ -58,7 +58,7 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
         db: Session = request.state.db
-        user = db.query(User).filter(User.id == id).first()
+        user = db.query(User).filter(User.id == id, User.is_active == True).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 

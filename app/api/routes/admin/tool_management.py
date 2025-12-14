@@ -25,7 +25,7 @@ def create_tool(
 ):
     db: Session = request.state.db
 
-    tool_name_lowercase = tool_data.name.lower()
+    tool_name_lowercase = tool_data.name.lower().strip()
 
     existing = db.query(Tool).filter(Tool.tool_name == tool_name_lowercase).first()
     if existing:
