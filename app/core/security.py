@@ -263,6 +263,6 @@ def decrypt_value(token: str) -> str:
 
 async def get_tool_access_token(tool_entry: dict) -> str:
     if tool_entry["provider"] == "github":
-        return await get_github_installation_token(decrypt_value(tool_entry["installation_id"]))
+        return await get_github_installation_token(decrypt_value(tool_entry["refresh_token"]))
     else:
         raise HTTPException(status_code=400, detail="Invalid provider")

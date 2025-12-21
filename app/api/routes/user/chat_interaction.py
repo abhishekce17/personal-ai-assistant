@@ -1,5 +1,6 @@
 # routes/chat_interaction.py - Fixed WebSocket Handler with Proper Streaming
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
+from sqlalchemy import func
 from langgraph.checkpoint.redis import RedisSaver
 from utils.agent_creator import AgentCreator
 from db.models import Model, User, PlanModel, FederatedIdentity, Tool
@@ -156,7 +157,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Fetch active tools linked by this user and globally enabled
                     active_identities = (
                         db.query(FederatedIdentity.provider, FederatedIdentity.refresh_token)
-                        .join(Tool, Tool.tool_provider == FederatedIdentity.provider)
+                        .join(Tool, func.lower(Tool.tool_provider) == func.lower(FederatedIdentity.provider))
                         .filter(
                             (FederatedIdentity.user_id == id)
                             & (FederatedIdentity.installation_id.isnot(None))

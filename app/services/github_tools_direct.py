@@ -11,7 +11,7 @@ class Github_Tools_Direct(CommonGitToolBase):
         self.github = github.Github(auth=auth)
         try:
             self.user = self.github.get_user()
-            self.repos = self.user.get_repos()
+            self.repos = self.user.get_repos() # wont work with installation access token
         except github.GithubException as e:
             raise ValueError(f"Invalid GitHub PAT: {e.data.get('message', str(e))}")
 
