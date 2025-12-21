@@ -1,11 +1,14 @@
 from fastapi import HTTPException, Header, Request, status, Depends
 from sqlalchemy.orm import Session
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from db.models import User, Admin
 import httpx
 import bcrypt
 import time
 import jwt
+import base64
+import hashlib
 import os
 
 load_dotenv()
@@ -125,8 +128,8 @@ async def verify_github_installation_ownership(auth_code: str, installation_id: 
             "https://github.com/login/oauth/access_token",
             headers={"Accept": "application/json"},
             data={
-                "client_id": os.getenv("GITHUB_CLIENT_ID"),
-                "client_secret": os.getenv("GITHUB_CLIENT_SECRET"),
+                "client_id": os.getenv("GITHUB_APP_CLIENT_ID"),
+                "client_secret": os.getenv("GITHUB_APP_CLIENT_SECRET"),
                 "code": auth_code,
             }
         )
@@ -134,7 +137,6 @@ async def verify_github_installation_ownership(auth_code: str, installation_id: 
         token_data = token_resp.json()
         
         if "error" in token_data:
-            # This usually happens if the code is expired or invalid
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail=f"GitHub Auth Error: {token_data.get('error_description', 'Invalid Code')}"
@@ -145,39 +147,69 @@ async def verify_github_installation_ownership(auth_code: str, installation_id: 
              raise HTTPException(status_code=400, detail="Failed to retrieve access token from GitHub.")
 
         # 2. Verify Ownership via API
-        # We ask GitHub: "Does the user owning this token have access to installation X?"
+        # CORRECT METHOD: Fetch all installations this user manages
         verification_resp = await client.get(
-            f"https://api.github.com/user/installations/{installation_id}",
+            "https://api.github.com/user/installations",
             headers={
                 "Authorization": f"Bearer {user_access_token}",
                 "Accept": "application/vnd.github+json"
-            }
+            },
+            params={"per_page": 100} # Fetch up to 100 to ensure we see them all
         )
 
-        # 3. Strict Check
         if verification_resp.status_code != 200:
-            # 403 Forbidden or 404 Not Found means the user does NOT own this installation.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to fetch user installations from GitHub."
+            )
+
+        # 3. Strict Check (Filter the list)
+        user_installations = verification_resp.json().get("installations", [])
+        
+        # Check if the requested installation_id exists in the user's authorized list
+        # We cast both to int to ensure type safety
+        is_owner = any(inst["id"] == int(installation_id) for inst in user_installations)
+
+        if not is_owner:
+            # 403 Forbidden means the user does NOT own this installation.
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, 
                 detail="Security Alert: You do not have permission to link this installation."
-            )
-        
+            )     
+
+
+def generate_github_jwt():
+    """
+    Generates a JWT for the GitHub App to authenticate as 'The App'.
+    """
+    private_key_content = os.getenv("GITHUB_APP_PRIVATE_KEY")
+    
+    if not private_key_content:
+        raise ValueError("Environment variable 'GITHUB_APP_PRIVATE_KEY' is missing.")
+
+    formatted_key = private_key_content.replace('\\n', '\n')
+
+    if "-----BEGIN RSA PRIVATE KEY-----" not in formatted_key:
+        raise ValueError(
+            "Invalid Private Key format. The key must include the "
+            "'-----BEGIN RSA PRIVATE KEY-----' header and footer."
+        )
+
+    payload = {
+        "iat": int(time.time()),       
+        "exp": int(time.time()) + 600, 
+        "iss": os.getenv("GITHUB_APP_ID")
+    }
+    
+    return jwt.encode(payload, formatted_key, algorithm="RS256")
 
 async def get_github_installation_token(installation_id: str):
     """
     Generates an installation access token for the App.
     MUST be async to avoid blocking the server.
     """
-    # 1. Create a JWT for the App Authentication
-    pem_file = os.getenv("GITHUB_APP_PRIVATE_KEY") 
     
-    payload = {
-        "iat": int(time.time()),       # Issued at now
-        "exp": int(time.time()) + 600, # Expires in 10 mins
-        "iss": os.getenv("GITHUB_APP_ID")
-    }
-    
-    jwt_token = jwt.encode(payload, pem_file, algorithm="RS256")
+    jwt_token = generate_github_jwt()
  
     headers = {
         "Authorization": f"Bearer {jwt_token}",
@@ -194,3 +226,36 @@ async def get_github_installation_token(installation_id: str):
             raise Exception(f"Failed to get token: {response.text}")
 
         return response.json()["token"]
+
+
+def _get_encryption_key() -> bytes:
+    """
+    Retrieve or derive the encryption key.
+    If ENCRYPTION_KEY is not set, derive one from JWT_SECRET_KEY.
+    """
+    if not JWT_SECRET_KEY:
+        raise ValueError("No ENCRYPTION_KEY or JWT_SECRET_KEY found.")
+        
+    # Fernet requires a 32-byte url-safe base64-encoded key
+    return base64.urlsafe_b64encode(hashlib.sha256(JWT_SECRET_KEY.encode()).digest())
+
+def encrypt_value(value: str) -> str:
+    """
+    Encrypts a string value using Fernet (symmetric encryption).
+    """
+    if not value:
+        return value
+    f = Fernet(_get_encryption_key())
+    return f.encrypt(value.encode()).decode()
+
+def decrypt_value(token: str) -> str:
+    """
+    Decrypts a Fernet token back to the original string.
+    """
+    if not token:
+        return token
+    try:
+        f = Fernet(_get_encryption_key())
+        return f.decrypt(token.encode()).decode()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid User")

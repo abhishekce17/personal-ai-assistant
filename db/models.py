@@ -375,5 +375,6 @@ class PendingState(BaseMixin, Base):
     user_id = Column(String, index=True, nullable=False)
     platform = Column(String, nullable=False)
     state_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (UniqueConstraint('user_id', 'platform', name='uix_user_platform'),)
