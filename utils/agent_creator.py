@@ -118,7 +118,7 @@ class AgentCreator:
 
         try:
             config = {"configurable": {"thread_id": thread_id}}
-            result = self.agent.invoke(
+            result = self.agent.ainvoke(
                 input={"messages": [("human", data)]}, config=config
             )
 
@@ -151,7 +151,7 @@ class AgentCreator:
             # Run agent in thread
             def run_agent():
                 config = {"configurable": {"thread_id": thread_id}}
-                return self.agent.invoke(
+                return self.agent.ainvoke(
                     input={"messages": [("human", data)]}, config=config
                 )
 

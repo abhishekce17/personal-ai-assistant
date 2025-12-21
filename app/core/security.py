@@ -259,3 +259,10 @@ def decrypt_value(token: str) -> str:
         return f.decrypt(token.encode()).decode()
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid User")
+
+
+async def get_tool_access_token(tool_entry: dict) -> str:
+    if tool_entry["provider"] == "github":
+        return await get_github_installation_token(decrypt_value(tool_entry["installation_id"]))
+    else:
+        raise HTTPException(status_code=400, detail="Invalid provider")

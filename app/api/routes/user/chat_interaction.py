@@ -2,8 +2,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
 from langgraph.checkpoint.redis import RedisSaver
 from utils.agent_creator import AgentCreator
-from db.models import Model, User, PlanModel
-from app.core.security import verify_jwt_token
+from db.models import Model, User, PlanModel, FederatedIdentity, Tool
+from app.core.security import verify_jwt_token, get_tool_access_token
 from app.core.config import RedisCheckpoint
 from utils.socket_agent_llm import SocketAgentLLM
 from utils.types import ConversationType
@@ -25,8 +25,6 @@ logger = logging.getLogger(__name__)
 redis_saver = RedisCheckpoint.get_saver()
 
 convo_type: ConversationType = ConversationType.NON_STREAM
-
-enabled_tools = ["github"]  # Moking for now, can be dynamic based on user plan
 
 
 class UserAgentManager:
@@ -155,6 +153,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         .scalar()
                     )
 
+                    # Fetch active tools linked by this user and globally enabled
+                    active_identities = (
+                        db.query(FederatedIdentity.provider, FederatedIdentity.refresh_token)
+                        .join(Tool, Tool.tool_provider == FederatedIdentity.provider)
+                        .filter(
+                            (FederatedIdentity.user_id == id)
+                            & (FederatedIdentity.installation_id.isnot(None))
+                            & (FederatedIdentity.is_active == True)
+                            & (Tool.is_active == True)
+                        )
+                        .all()
+                    )
+                    enabled_tools = [
+                        {"provider": identity.provider, "refresh_token": identity.refresh_token}
+                        for identity in active_identities
+                    ]
+
                 if not authorized_plan_model:
                     logger.warning(f"Unauthorized model for user: {id}")
                     await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -172,18 +187,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 tools = []
                 try:
-                    for tool in enabled_tools:
-                        #this external token should be hashed/encrypted in production
-                        x_external_tokens = json.loads(
-                            websocket.headers.get("X-External-Tool-Tokens", "")
-                        )
-                        if tool + "_access_token" in x_external_tokens:
+                    for tool_entry in enabled_tools:
+                        tool = tool_entry["provider"]
+                        x_external_tokens = await get_tool_access_token(tool_entry)
+                        if x_external_tokens:
                             tool_module = importlib.import_module(
                                 f"app.Tools.{tool}_tools"
                             )
                             if tool_module and hasattr(tool_module, "make_tools"):
                                 tools += tool_module.make_tools(
-                                    PAT=x_external_tokens[tool + "_access_token"]
+                                    PAT=x_external_tokens
                                 )
 
                 except Exception as e:
