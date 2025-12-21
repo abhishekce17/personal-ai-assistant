@@ -98,6 +98,11 @@ async def tool_auth_callback(
     )
     db.add(new_identity)
     db.delete(pending_state)
+
+    # Increment user_count in Tools table
+    tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == payload.platform.lower()).first()
+    if tool_record:
+        tool_record.user_count += 1
     
     db.commit()
 
@@ -145,12 +150,24 @@ async def uninstall_app(
 
         if response.status_code == 204:
             # 4. Cleanup: Remove the link from your database
+            
+            # Decrement user_count
+            tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == identity_link.provider.lower()).first()
+            if tool_record and tool_record.user_count > 0:
+                 tool_record.user_count -= 1
+
             db.delete(identity_link)
             db.commit()
             return {"message": "App uninstalled successfully"}
         
         elif response.status_code == 404:
             # If not found on GitHub, remove from our DB as well to sync state
+            
+            # Decrement user_count
+            tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == identity_link.provider.lower()).first()
+            if tool_record and tool_record.user_count > 0:
+                 tool_record.user_count -= 1
+
             db.delete(identity_link)
             db.commit()
             return {"message": "Installation already removed or not found"}
