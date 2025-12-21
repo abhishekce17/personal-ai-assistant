@@ -3,9 +3,10 @@ from app.api.routes.admin import (
     authentication as admin_authentication,
     model_management,
 )
-from app.api.routes.user import authentication, user, chat_management, chat_interaction
+from app.api.routes.user import authentication, user, chat_management, chat_interaction, tool_auth_link
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
 from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management, feature_flag_management
+# from app.api.routes.webhook import tool_installation
 from app.services.agent_lifecycle import lifespan
 from app.api.routes.admin import plan_management
 from fastapi import FastAPI
@@ -48,6 +49,12 @@ app.include_router(user.router, prefix="/user", tags=["User"])
 app.include_router(chat_management.router, prefix="/chat", tags=["Chat Management"])
 app.include_router(
     chat_interaction.router, prefix="/interaction", tags=["Chat Interaction"]
+)
+# app.include_router(
+#     tool_installation.router, prefix="/tool-installation", tags=["Tool Installation"]
+# )
+app.include_router(
+    tool_auth_link.router, prefix="/tool-auth-link", tags=["Tool Authentication"]
 )
 
 admin.middleware("http")(db_session_middleware_with_exception_handling)

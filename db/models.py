@@ -184,8 +184,9 @@ class FederatedIdentity(BaseMixin, Base):
     provider = Column(String(50), nullable=False)         
     provider_account_id = Column(String(255), nullable=False) 
     remark = Column(Enum(IdentityScope,name="identity_scope_enum"), default=IdentityScope.PERSONAL)
-    access_token = Column(Text, nullable=False)
-    refresh_token = Column(Text, nullable=True)
+    installation_id  = Column(Text, nullable=True, unique=True)
+    access_token = Column(Text, nullable=True, unique=True)
+    refresh_token = Column(Text, nullable=True, unique=True)
     expires_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="federated_identities")
@@ -365,3 +366,14 @@ class FeatureFlag(BaseMixin, Base):
     __table_args__ = (
         UniqueConstraint('reference_key', 'revision_id', name='feature_artifact_revision'),
     )
+
+
+
+class PendingState(BaseMixin, Base):
+    __tablename__ = "pending_state"
+
+    user_id = Column(String, index=True, nullable=False)
+    platform = Column(String, nullable=False)
+    state_hash = Column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint('user_id', 'platform', name='uix_user_platform'),)

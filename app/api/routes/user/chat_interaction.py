@@ -5,7 +5,7 @@ from utils.agent_creator import AgentCreator
 from db.models import Model, User, PlanModel
 from app.core.security import verify_jwt_token
 from app.core.config import RedisCheckpoint
-from main import SocketAgentLLM
+from utils.socket_agent_llm import SocketAgentLLM
 from utils.types import ConversationType
 import importlib
 import json
