@@ -9,18 +9,38 @@ class Github_Tools_Direct(CommonGitToolBase):
     def __init__(self, personal_access_token: str = None):
         auth = github.Auth.Token(personal_access_token)
         self.github = github.Github(auth=auth)
+        self.token = personal_access_token
         try:
             self.user = self.github.get_user()
-            self.repos = self.user.get_repos() # wont work with installation access token
+            self.repos = self.list_accessible_repos() # wont work with installation access token
+            print(self.repos)
         except github.GithubException as e:
+            print(f"Error in __init__: {e}")
             raise ValueError(f"Invalid GitHub PAT: {e.data.get('message', str(e))}")
+
+    def list_accessible_repos(self):
+            try:
+                resp = requests.get(
+                    "https://api.github.com/installation/repositories", 
+                    headers={"Authorization": f"Bearer {self.token}"},
+                    params={"per_page": 100},
+                    timeout=10
+                )
+                resp.raise_for_status() # Raises error automatically if 4xx or 5xx
+                
+                return [repo["full_name"] for repo in resp.json().get("repositories", [])]
+                
+            except Exception as e:
+                print(f"Error in list_accessible_repos: {e}")
+                return [] # Return empty list on failure so code doesn't crash
 
     def get_repo_list(self) -> Dict[str, Any]:
         try:
             if not self.repos:
                 return {"status": 404, "message": "No repositories found"}
-            return {"status": 200, "data": [repo.name for repo in self.repos]}
+            return {"status": 200, "data": [repo for repo in self.repos]}
         except Exception as e:
+            print(f"Error in get_repo_list: {e}")
             return {"status": 500, "message": str(e)}
 
     def get_file_content(self, repo_name, file_path):
@@ -29,6 +49,7 @@ class Github_Tools_Direct(CommonGitToolBase):
             file = repo.get_contents(file_path)
             return {"status": 200, "data": file.decoded_content.decode("utf-8")}
         except Exception as e:
+            print(f"Error in get_file_content: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def get_repo_structure(self, repo_name, directory_path=""):
@@ -37,6 +58,7 @@ class Github_Tools_Direct(CommonGitToolBase):
             structure = self._get_repo_structure(repo=repo, path=directory_path)
             return {"status": 200, "data": structure}
         except Exception as e:
+            print(f"Error in get_repo_structure: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     # def list_files_in_repo(self, repo_name):
@@ -69,6 +91,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 },
             }
         except Exception as e:
+            print(f"Error in get_repo_info: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def write_file(
@@ -77,21 +100,34 @@ class Github_Tools_Direct(CommonGitToolBase):
         file_path: str,
         content: str,
         commit_msg: str = "Agent Updating file via API",
+        branch_name: str = "main",
     ) -> Dict[str, Any]:
         try:
             repo = self._get_repo_instance(repo_name)
+            target_branch = branch_name if branch_name else repo.default_branch
             try:
-                existing_file = repo.get_contents(file_path)
+                existing_file = repo.get_contents(file_path, ref=target_branch)
                 updated_file = repo.update_file(
                     existing_file.path,
                     commit_msg,
                     content,
                     existing_file.sha,
+                    branch=target_branch
                 )
-                return {"status": 200, "file": updated_file}
+                return {
+                    "status": 200,
+                    "data": {
+                        "commit_sha": updated_file["commit"].sha,
+                        "file_path": updated_file["content"].path,
+                        "download_url": updated_file["content"].download_url,
+                        "html_url": updated_file["content"].html_url
+                    }
+                }
             except github.GithubException as e:
+                print(e)
                 return {"status": e.status, "message": str(e)}
         except Exception as e:
+            print(f"Error in write_file: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def create_file(
@@ -110,20 +146,28 @@ class Github_Tools_Direct(CommonGitToolBase):
                         repo.get_contents(file_path)
                         return {"status": 400, "message": "File already exists"}
                     except github.GithubException as e:
+                        print(f"Error in create_file (file check): {e}")
                         new_file = repo.create_file(
                             file_path, commit_msg, content, branch
                         )
                         return {
                             "status": 200,
-                            "file": new_file,
+                            "data": {
+                                "commit_sha": new_file["commit"].sha,
+                                "file_path": new_file["content"].path,
+                                "download_url": new_file["content"].download_url,
+                                "html_url": new_file["content"].html_url
+                            }
                         }
                 except github.GithubException as e:
+                    print(f"Error in create_file (create): {e}")
                     return {"status": e.status, "message": str(e)}
             return {
                 "status": getattr(e, "status", 500),
                 "message": "Repository not found",
             }
         except Exception as e:
+            print(f"Error in create_file: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def list_issues(self, repo_name: str):
@@ -147,6 +191,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 ],
             }
         except Exception as e:
+            print(f"Error in list_issues: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def create_issue(
@@ -169,6 +214,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 },
             }
         except Exception as e:
+            print(f"Error in create_issue: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def read_issue(self, repo_name: str, issue_number: int) -> Dict[str, Any]:
@@ -189,6 +235,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 },
             }
         except Exception as e:
+            print(f"Error in read_issue: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def close_issue(
@@ -202,6 +249,7 @@ class Github_Tools_Direct(CommonGitToolBase):
             issue.edit(state="closed", close_reason=close_reason)
             return {"status": 200}
         except Exception as e:
+            print(f"Error in close_issue: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     # There is no methode to support comment on pr or issue
@@ -239,6 +287,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 ],
             }
         except Exception as e:
+            print(f"Error in list_pull_requests: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def read_pull_request(self, repo_name: str, pr_number: int) -> Dict[str, Any]:
@@ -275,29 +324,38 @@ class Github_Tools_Direct(CommonGitToolBase):
                 },
             }
         except Exception as e:
+            print(f"Error in read_pull_request: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def get_pr_diff(self, repo_name: str, pr_number: int) -> Dict[str, Any]:
-        try:
-            repo = self._get_repo_instance(repo_name)
-            pr = repo.get_pull(pr_number)
+            try:
+                repo = self._get_repo_instance(repo_name)
+                pr = repo.get_pull(pr_number)
 
-            # GitHub API requires Accept header for raw diff
-            headers = {"Accept": "application/vnd.github.v3.diff"}
-            response = requests.get(pr.url, headers=headers)
+                diff_url = pr.diff_url 
+                response = requests.get(
+                    pr.url,  # <--- Use .url, NOT .diff_url
+                    headers={
+                        "Authorization": f"Bearer {self.token}",
+                        "Accept": "application/vnd.github.v3.diff" # <--- Asks for Diff format
+                    },
+                    timeout=10
+                )
 
-            if response.status_code == 200:
+                if response.status_code == 200:
+                    return {
+                        "status": 200,
+                        "diff": response.text,
+                    }
+                
                 return {
-                    "status": 200,
-                    "diff": response.text,  # full diff content here
+                    "status": response.status_code,
+                    "message": f"Failed to fetch diff from {diff_url}. Check App Permissions.",
                 }
-            else:
-                return {
-                    "status": getattr(e, "status", 500),
-                    "message": f"Failed to fetch diff (HTTP {response.status_code})",
-                }
-        except Exception as e:
-            return {"status": getattr(e, "status", 500), "message": str(e)}
+
+            except Exception as e:
+                print(f"Error in get_pr_diff: {e}")
+                return {"status": 500, "message": str(e)}
 
     def create_pull_request(
         self,
@@ -332,8 +390,10 @@ class Github_Tools_Direct(CommonGitToolBase):
                     },
                 }
             except github.GithubException as e:
+                print(e)
                 return {"status": e.status, "message": str(e)}
         except Exception as e:
+            print(f"Error in create_pull_request: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def merge_pull_request(self, repo_name: str, pr_number: int) -> Dict[str, Any]:
@@ -364,6 +424,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                     "message": f"Failed to merge pull request: {merge_result.message}",
                 }
         except Exception as e:
+            print(f"Error in merge_pull_request: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def close_pull_request(
@@ -378,6 +439,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 "message": f"Pull request #{pr_number} closed successfully",
             }
         except Exception as e:
+            print(f"Error in close_pull_request: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def rollback_to_commit(
@@ -392,6 +454,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 "message": f"Branch '{branch_name}' reset to commit {commit_sha}",
             }
         except Exception as e:
+            print(f"Error in rollback_to_commit: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def list_commits_log_oneline(
@@ -406,7 +469,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 "status": 200,
                 "commits": [
                     {
-                        "sha": commit.sha[:7],  # short SHA like `git log --oneline`
+                        "sha": commit.sha,
                         "message": commit.commit.message.split("\n")[0],
                         "author": (
                             commit.commit.author.name
@@ -423,6 +486,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 ],
             }
         except Exception as e:
+            print(f"Error in list_commits_log_oneline: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     # def get_commit(self, repo_name, commit_sha):
@@ -446,6 +510,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 "source_sha": source_sha,
             }
         except Exception as e:
+            print(f"Error in create_branch: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def delete_branch(self, repo_name: str, branch_name: str) -> Dict[str, Any]:
@@ -458,6 +523,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 "message": f"Branch '{branch_name}' deleted successfully",
             }
         except Exception as e:
+            print(f"Error in delete_branch: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def list_branches(self, repo_name: str) -> Dict[str, Any]:
@@ -472,6 +538,7 @@ class Github_Tools_Direct(CommonGitToolBase):
                 ],
             }
         except Exception as e:
+            print(f"Error in list_branches: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def search_code(
@@ -504,15 +571,16 @@ class Github_Tools_Direct(CommonGitToolBase):
 
             return {"status": 200, "results": all_results}
         except Exception as e:
+            print(f"Error in search_code: {e}")
             return {"status": getattr(e, "status", 500), "message": str(e)}
 
     def _get_repo_instance(self, repo_name: str):
         if not self.repos:
-            raise Exception("No Repository Found")
-        for repo in self.repos:
-            if repo.name == repo_name:
-                return repo
-        raise Exception("Repository Not Found")
+            raise Exception("No repositories available to search.")
+        match = next((r for r in self.repos if r.lower() == repo_name.lower()), None)
+        if match:
+            return self.github.get_repo(match)
+        raise Exception(f"Repository '{repo_name}' not found in authorized list.")
 
     def _get_repo_structure(self, repo: any, path=""):
         contents = repo.get_contents(path)

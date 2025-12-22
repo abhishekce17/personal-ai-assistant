@@ -64,6 +64,7 @@ def make_tools(PAT: str):
             repo_name: str,
             file_path: str,
             content: str,
+            branch_name: str,
             commit_msg: str = "Agent Updating file via API",
         ) -> str:
             """
@@ -79,7 +80,7 @@ def make_tools(PAT: str):
                 Dictionary containing status and updated file information
             """
             return json.dumps(
-                github.write_file(repo_name, file_path, content, commit_msg)
+                github.write_file(repo_name, file_path, content, commit_msg, branch_name)
             )
 
         @tool

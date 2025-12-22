@@ -34,6 +34,7 @@ class CommonGitToolBase(ABC):
         repo_name: str,
         file_path: str,
         content: str,
+        branch_name: str,
         commit_msg: str = "Agent Updating file via API",
     ) -> Dict[str, Any]:
         """Write a file to the repository"""
