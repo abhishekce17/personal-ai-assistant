@@ -247,7 +247,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         else:
                             # Fallback to non-streaming response
                             try:
-                                fallback_response = socket_agent.talk_non_stream(
+                                fallback_response = await socket_agent.talk_non_stream(
                                     data, str(thread_id)
                                 )
                                 await websocket.send_text(
@@ -296,6 +296,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
     finally:
         if id:
+            # 1. Cleanup Redis Memory (Orphaned context)
+            if thread_id:
+                RedisCheckpoint.delete_thread_memory(str(thread_id))
+
             if RedisCheckpoint._redis_saver:
                 RedisCheckpoint.close_connection()
             logger.info(f"🧹 Cleaning up Redis connection for disconnected user: {id}")

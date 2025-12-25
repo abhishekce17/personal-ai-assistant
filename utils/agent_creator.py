@@ -109,18 +109,24 @@ class AgentCreator:
             self.agent = agent
             return agent
 
-    def talk_non_stream(self, data: str, thread_id: str) -> str:
-        """Fallback non-streaming method"""
+    async def talk_non_stream(self, data: str, thread_id: str) -> str:
+        """Fallback non-streaming method (Runs sync invoke in a thread)"""
         if not self.agent:
             raise RuntimeError("Agent is not set up. Call agent_creator() first.")
         if not thread_id:
             raise ValueError("user id must be provided as thread_id.")
 
         try:
-            config = {"configurable": {"thread_id": thread_id}}
-            result = self.agent.invoke(
-                input={"messages": [("human", data)]}, config=config
-            )
+            # Define synchronous worker function
+            def _run_invokation():
+                config = {"configurable": {"thread_id": thread_id}}
+                return self.agent.invoke(
+                    input={"messages": [("human", data)]}, config=config
+                )
+
+            # Offload to thread pool to avoid blocking event loop
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(shared_executor, _run_invokation)
 
             # Extract final response
             if "messages" in result and result["messages"]:
