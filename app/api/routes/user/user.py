@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, status
 from db.models import User
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from app.core.security import get_current_user, verify_password, hash_password
 
@@ -8,12 +8,12 @@ router = APIRouter()
 
 
 @router.get("/me")
-def get_user(user: User = Depends(get_current_user)):
+async def get_user(user: User = Depends(get_current_user)):
     return {"user": user}
 
 
 @router.post("/update")
-def update_user(
+async def update_user(
     request: Request,
     user: User = Depends(get_current_user),
     name: str = None,
@@ -21,7 +21,7 @@ def update_user(
     avatar_id: str = None,
     default_model_id: str = None,
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     if name:
         user.name = name
     if email:
@@ -31,30 +31,30 @@ def update_user(
     if default_model_id:
         user.default_model_id = default_model_id
 
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return {"user": user}
 
 
 @router.put("/password")
-def update_password(
+async def update_password(
     old_password: str,
     new_password: str,
     request: Request,
     user: User = Depends(get_current_user),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     verify_password(old_password, user.password)
     user.password = hash_password(new_password)
-    db.commit()
+    await db.commit()
     return {"message": "password changes successfully"}
 
 
 @router.delete("/delete", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
+async def delete_user(
     password: str, request: Request, user: User = Depends(get_current_user)
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     verify_password(password, user.password)
-    db.delete(user)
-    db.commit()
+    await db.delete(user)
+    await db.commit()

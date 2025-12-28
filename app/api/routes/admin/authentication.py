@@ -1,6 +1,7 @@
 import os
 from fastapi import APIRouter, HTTPException, Request, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from db.models import Admin, AdminRegister, Login
 from app.core.security import hash_password, verify_password, create_jwt_token
 
@@ -8,16 +9,18 @@ router = APIRouter()
 
 
 @router.post("/login")
-def admin_login(login: Login, request: Request, response: Response):
+async def admin_login(login: Login, request: Request, response: Response):
     is_production = os.getenv("ENVIRONMENT") == "production"
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     email = login.email
     password = login.password
 
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required")
 
-    admin = db.query(Admin).filter(Admin.email == email).first()
+    result = await db.execute(select(Admin).where(Admin.email == email))
+    admin = result.scalars().first()
+    
     if not admin:
         raise HTTPException(status_code=401, detail="Email or password is incorrect")
 
@@ -40,10 +43,12 @@ def admin_login(login: Login, request: Request, response: Response):
     }
 
 @router.post("/register")
-def admin_register(register: AdminRegister, request: Request):
-    db: Session = request.state.db
+async def admin_register(register: AdminRegister, request: Request):
+    db: AsyncSession = request.state.db
 
-    existing_admin = db.query(Admin).filter(Admin.email == register.email).first()
+    result = await db.execute(select(Admin).where(Admin.email == register.email))
+    existing_admin = result.scalars().first()
+    
     if existing_admin:
         raise HTTPException(status_code=409, detail="Admin already exists")
 
@@ -55,8 +60,8 @@ def admin_register(register: AdminRegister, request: Request):
     )
 
     db.add(new_admin)
-    db.commit()
-    db.refresh(new_admin)
+    await db.commit()
+    await db.refresh(new_admin)
 
     token = create_jwt_token(new_admin.email, new_admin.id)
 
@@ -64,3 +69,4 @@ def admin_register(register: AdminRegister, request: Request):
         "message": "Admin registered successfully",
         "token": token,
     }
+

@@ -13,7 +13,7 @@
 
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from db.models import User, Plan
 from utils.db import activate_row, deactivate_row
@@ -29,76 +29,78 @@ router = APIRouter()
 
 
 @router.get("/users", summary="List all users")
-def list_users(
+async def list_users(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)), # Ensure only admins can access, dont remove this as this check for admin roles and admin token
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-    users = db.execute(select(User.avatar, User.name, User.email, User.id, User.created_at, User.current_plan_id, User.is_active, Plan.name.label("plan_name"), Plan.slug).join(Plan, User.current_plan_id == Plan.id)).mappings().all()
+    result = await db.execute(select(User.avatar, User.name, User.email, User.id, User.created_at, User.current_plan_id, User.is_active, Plan.name.label("plan_name"), Plan.slug).join(Plan, User.current_plan_id == Plan.id))
+    users = result.mappings().all()
     return users;
 
 
 @router.post("/users/{id}", summary="Get user details by ID")
-def get_user_details(
+async def get_user_details(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     user_id = request.path_params["id"];
     if not user_id:
         raise HTTPException(status_code=400, detail="User ID is required")
-    user =  db.execute(
+    
+    result = await db.execute(
                 select(
                     *[c.label(f"user_{c.name}") for c in User.__table__.c],
                     *[c.label(f"plan_{c.name}") for c in Plan.__table__.c],
                 )
                 .join(Plan, User.current_plan_id == Plan.id, isouter=True)
                 .filter(User.id == user_id)
-            ).mappings().first()
+            )
+    user = result.mappings().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
 @router.patch("/users/{id}/activate", summary="Activate or Deactivate a user by ID")
-def activate_user(
+async def activate_user(
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     user_id = request.path_params["id"]
     if( is_active ):
-        return activate_row(db, User, user_id)
+        return await activate_row(db, User, user_id)
     elif (not is_active):
-        return deactivate_row(db, User, user_id)
+        return await deactivate_row(db, User, user_id)
 
 @router.post("/users/{id}/plan/{plan_id}", summary="Change user plan by ID")
-def change_user_plan(
+async def change_user_plan(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     user_id = request.path_params["id"]
     plan_id = request.path_params["plan_id"]
 
     if not user_id or not plan_id:
         raise HTTPException(status_code=400, detail="User ID and Plan ID are required")
-    user = db.execute(
-        select(User).filter(User.id == user_id)
-    ).scalars().first()
+    
+    result = await db.execute(select(User).filter(User.id == user_id))
+    user = result.scalars().first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    plan = db.execute(
-        select(Plan).filter(Plan.id == plan_id)
-    ).scalars().first()
+    result = await db.execute(select(Plan).filter(Plan.id == plan_id))
+    plan = result.scalars().first()
 
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     user.current_plan_id = plan_id
-    db.commit()
+    await db.commit()
 
     return {"success": True, "message": "User plan changed successfully"}

@@ -1,5 +1,6 @@
 from fastapi import HTTPException, Header, Request, status, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 from db.models import User, Admin
@@ -46,7 +47,7 @@ def verify_jwt_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-def get_current_user(
+async def get_current_user(
     request: Request,
     authorization: str = Header(None),
 ) -> User:
@@ -62,8 +63,10 @@ def get_current_user(
         if not id:
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
-        db: Session = request.state.db
-        user = db.query(User).filter(User.id == id, User.is_active == True).first()
+        db: AsyncSession = request.state.db
+        result = await db.execute(select(User).where(User.id == id, User.is_active == True))
+        user = result.scalars().first()
+        
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -89,7 +92,7 @@ def extract_token(request: Request) -> str | None:
     return None
 
 
-def get_current_admin(request: Request) -> Admin:
+async def get_current_admin(request: Request) -> Admin:
     token = extract_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Missing or invalid token")
@@ -99,8 +102,9 @@ def get_current_admin(request: Request) -> Admin:
     if not admin_id:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    db: Session = request.state.db
-    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    admin = result.scalars().first()
 
     if not admin or not admin.is_active:
         raise HTTPException(status_code=403, detail="Admin not found")
@@ -109,7 +113,7 @@ def get_current_admin(request: Request) -> Admin:
 
 
 def require_admin_role_ids(*allowed_ids: str):
-    def _checker(admin: Admin = Depends(get_current_admin)):
+    async def _checker(admin: Admin = Depends(get_current_admin)):
         if admin.role_id not in allowed_ids:
             raise HTTPException(status_code=403, detail="Unauthorized admin")
         return admin

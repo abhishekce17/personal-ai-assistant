@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Body, status, Response
-from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, or_, select
 from app.core.security import get_current_user, verify_github_installation_ownership
 from db.models import User, PendingState, Tool, FederatedIdentity
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ class AuthLinkRequest(BaseModel):
     state_hash: str | None = None
 
 @router.post("/tool_auth_link", summary="Generate Tool Auth Link")
-def tool_auth_link(
+async def tool_auth_link(
     request: Request,
     response: Response,
     payload: AuthLinkRequest,
@@ -27,10 +27,11 @@ def tool_auth_link(
     """
     Generate a redirect link for Tool OAuth and store pending state.
     """
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # Check if the platform exists and is active in the Tool table
-    tool = db.query(Tool).filter(func.lower(Tool.tool_provider) == payload.platform.lower(), Tool.is_active == True).first()
+    result = await db.execute(select(Tool).where(func.lower(Tool.tool_provider) == payload.platform.lower(), Tool.is_active == True))
+    tool = result.scalars().first()
     if not tool:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -47,7 +48,7 @@ def tool_auth_link(
         )
 
     # Check for existing valid installation
-    existing_identity = db.query(FederatedIdentity).filter(
+    result = await db.execute(select(FederatedIdentity).where(
         FederatedIdentity.user_id == user.id,
         func.lower(FederatedIdentity.provider) == payload.platform.lower(),
         FederatedIdentity.is_active == True,
@@ -57,7 +58,8 @@ def tool_auth_link(
             FederatedIdentity.expires_at == None,
             FederatedIdentity.expires_at > datetime.now(timezone.utc)
         )
-    ).first()
+    ))
+    existing_identity = result.scalars().first()
 
     if existing_identity:
         raise HTTPException(
@@ -66,18 +68,19 @@ def tool_auth_link(
         )
     
     # Check for existing pending state for this user and platform
-    existing_pending = db.query(PendingState).filter(
+    result = await db.execute(select(PendingState).where(
         PendingState.user_id == str(user.id),
         PendingState.platform == payload.platform
-    ).first()
+    ))
+    existing_pending = result.scalars().first()
 
     if existing_pending:
         # Only update state hash if it doesn't match
         if existing_pending.state_hash != payload.state_hash:
             existing_pending.state_hash = payload.state_hash
             existing_pending.expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
-            db.commit()
-            db.refresh(existing_pending)
+            await db.commit()
+            await db.refresh(existing_pending)
         pending_state = existing_pending
             
     else:
@@ -89,8 +92,8 @@ def tool_auth_link(
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
         )
         db.add(pending_state)
-        db.commit()
-        db.refresh(pending_state)
+        await db.commit()
+        await db.refresh(pending_state)
     
     
 

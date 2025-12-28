@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from db.models import Plan, Model, PlanModel, PlanModelCreate, Tool, PlanTool, PlanToolCreate
 from sqlalchemy import select, join
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import require_admin_role_ids
 from dotenv import load_dotenv
 import os
@@ -16,30 +16,31 @@ router = APIRouter()
 
 #----------------- Plan and Model Mapping --------------------#
 @router.post("/plan-model", summary="Map a model to a plan")
-def create_plan_model_mapping(
+async def create_plan_model_mapping(
     payload: PlanModelCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # Check if plan and model exist
-    plan = db.query(Plan).filter(Plan.id == payload.plan_id).first()
+    result = await db.execute(select(Plan).where(Plan.id == payload.plan_id))
+    plan = result.scalars().first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    model = db.query(Model).filter(Model.id == payload.model_id).first()
+    result = await db.execute(select(Model).where(Model.id == payload.model_id))
+    model = result.scalars().first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
     # Check if mapping already exists
-    existing = (
-        db.query(PlanModel)
-        .filter(
-            PlanModel.plan_id == payload.plan_id, PlanModel.model_id == payload.model_id
-        )
-        .first()
+    result = await db.execute(
+        select(PlanModel)
+        .where(PlanModel.plan_id == payload.plan_id)
+        .where(PlanModel.model_id == payload.model_id)
     )
+    existing = result.scalars().first()
 
     if existing:
         raise HTTPException(status_code=409, detail="Mapping already exists")
@@ -47,17 +48,17 @@ def create_plan_model_mapping(
     # Create mapping
     mapping = PlanModel(plan_id=payload.plan_id, model_id=payload.model_id)
     db.add(mapping)
-    db.commit()
-    db.refresh(mapping)
+    await db.commit()
+    await db.refresh(mapping)
 
     return {"message": "Model successfully mapped to plan", "mapping_id": mapping.id}
 
 
 @router.get("/plan-model", summary="List all Plan-Model mappings")
-def list_all_plan_model_mappings(
+async def list_all_plan_model_mappings(
     request: Request, admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID))
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     stmt = select(
         PlanModel.id.label("mapping_id"),
         Plan.id.label("plan_id"),
@@ -73,69 +74,72 @@ def list_all_plan_model_mappings(
         )
     )
 
-    results = db.execute(stmt).mappings().all()
+    result = await db.execute(stmt)
+    results = result.mappings().all()
 
     return {"count": len(results), "mappings": results}
 
 
 @router.delete("/plan-model/{mapping_id}", summary="Delete a Plan-Model mapping by ID")
-def delete_plan_model_mapping(
+async def delete_plan_model_mapping(
     mapping_id: str,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-    mapping = db.query(PlanModel).filter(PlanModel.id == mapping_id).first()
+    result = await db.execute(select(PlanModel).where(PlanModel.id == mapping_id))
+    mapping = result.scalars().first()
     if not mapping:
         raise HTTPException(status_code=404, detail="Mapping not found")
 
-    db.delete(mapping)
-    db.commit()
+    await db.delete(mapping)
+    await db.commit()
 
     return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
 
 @router.patch("/plan-model/{mapping_id}", summary="Activate or Deactivate a Plan-Model mapping by ID")
-def activate_deactivate_plan_model_mapping(
+async def activate_deactivate_plan_model_mapping(
     mapping_id: str,
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     if( is_active ):
-        return activate_row(db, PlanModel, mapping_id)
+        return await activate_row(db, PlanModel, mapping_id)
     elif (not is_active):
-        return deactivate_row(db, PlanModel, mapping_id)
+        return await deactivate_row(db, PlanModel, mapping_id)
 
 #----------------- Plan and Tools Mapping --------------------#
 
 @router.post("/plan-tool", summary="Map a tool to a plan")
-def create_plan_tool_mapping(
+async def create_plan_tool_mapping(
     payload: PlanToolCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # Check if plan and model exist
-    plan = db.query(Plan).filter(Plan.id == payload.plan_id).first()
+    result = await db.execute(select(Plan).where(Plan.id == payload.plan_id))
+    plan = result.scalars().first()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    tool = db.query(Tool).filter(Tool.id == payload.tool_id).first()
+    result = await db.execute(select(Tool).where(Tool.id == payload.tool_id))
+    tool = result.scalars().first()
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
 
     # Check if mapping already exists
-    existing = (
-        db.query(PlanTool)
-        .filter(
-            PlanTool.plan_id == payload.plan_id, PlanTool.tool_id == payload.tool_id
-        )
-        .first()
+    result = await db.execute(
+        select(PlanTool)
+        .where(PlanTool.plan_id == payload.plan_id)
+        .where(PlanTool.tool_id == payload.tool_id)
     )
+    existing = result.scalars().first()
 
     if existing:
         raise HTTPException(status_code=409, detail="Mapping already exists")
@@ -143,17 +147,17 @@ def create_plan_tool_mapping(
     # Create mapping
     mapping = PlanTool(plan_id=payload.plan_id, tool_id=payload.tool_id)
     db.add(mapping)
-    db.commit()
-    db.refresh(mapping)
+    await db.commit()
+    await db.refresh(mapping)
 
     return {"message": "Tool successfully mapped to plan", "mapping_id": mapping.id}
 
 
 @router.get("/plan-tool", summary="List all Plan-Tool mappings")
-def list_all_plan_tool_mappings(
+async def list_all_plan_tool_mappings(
     request: Request, admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID))
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
     stmt = select(
         PlanTool.id.label("mapping_id"),
         Plan.id.label("plan_id"),
@@ -169,38 +173,40 @@ def list_all_plan_tool_mappings(
         )
     )
 
-    results = db.execute(stmt).mappings().all()
+    result = await db.execute(stmt)
+    results = result.mappings().all()
 
     return {"count": len(results), "mappings": results}
 
 
 @router.delete("/plan-tool/{mapping_id}", summary="Delete a Plan-Tool mapping by ID")
-def delete_plan_tool_mapping(
+async def delete_plan_tool_mapping(
     mapping_id: str,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-    mapping = db.query(PlanTool).filter(PlanTool.id == mapping_id).first()
+    result = await db.execute(select(PlanTool).where(PlanTool.id == mapping_id))
+    mapping = result.scalars().first()
     if not mapping:
         raise HTTPException(status_code=404, detail="Mapping not found")
 
-    db.delete(mapping)
-    db.commit()
+    await db.delete(mapping)
+    await db.commit()
 
     return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
 
 @router.patch("/plan-tool/{mapping_id}", summary="Activate or Deactivate a Plan-Tool mapping by ID")
-def activate_deactivate_plan_tool_mapping(
+async def activate_deactivate_plan_tool_mapping(
     mapping_id: str,
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     if( is_active ):
-        return activate_row(db, PlanTool, mapping_id)
+        return await activate_row(db, PlanTool, mapping_id)
     elif (not is_active):
-        return deactivate_row(db, PlanTool, mapping_id)
+        return await deactivate_row(db, PlanTool, mapping_id)

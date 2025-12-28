@@ -9,6 +9,7 @@ import asyncio
 import logging
 import redis
 import queue
+from langchain.callbacks.manager import CallbackManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,8 +84,6 @@ class AgentCreator:
                 # Enable streaming if supported
                 self.llm.streaming = True
                 if self.llm.callback_manager is None:
-                    from langchain.callbacks.manager import CallbackManager
-
                     self.llm.callback_manager = CallbackManager(
                         [self.streaming_callback]
                     )

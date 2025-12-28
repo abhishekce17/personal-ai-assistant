@@ -1,24 +1,27 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from db.models import Login, Register, User, Plan, PlanModel, Model
 from app.core.security import hash_password, create_jwt_token
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.core.security import verify_password
 
 router = APIRouter()
 
 
 @router.post("/login")
-def login(login: Login, request: Request):
+async def login(login: Login, request: Request):
     email = login.email
     password = login.password
-    db: Session = request.state.db  # ✅ Use DB from middleware
+    db: AsyncSession = request.state.db  # ✅ Use DB from middleware
     if not email or not password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email and password are required",
         )
     # Check if user exists
-    user = db.query(User).filter(User.email == email).first()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,8 +45,8 @@ def login(login: Login, request: Request):
 
 
 @router.post("/register")
-def register(register: Register, request: Request):
-    db: Session = request.state.db
+async def register(register: Register, request: Request):
+    db: AsyncSession = request.state.db
 
     if not register.terms_and_condition:
         raise HTTPException(
@@ -51,27 +54,28 @@ def register(register: Register, request: Request):
             detail="Terms and conditions must be accepted",
         )
 
-    existing_user = db.query(User).filter(User.email == register.email).first()
+    result = await db.execute(select(User).where(User.email == register.email))
+    existing_user = result.scalars().first()
+    
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="User already exists"
         )
 
-    default_plan = (
-        db.query(Plan)
-        .filter((Plan.is_default == True) & (Plan.is_active == True))
-        .first()
-    )
+    result = await db.execute(select(Plan).where((Plan.is_default == True) & (Plan.is_active == True)))
+    default_plan = result.scalars().first()
+    
     if not default_plan:
         raise HTTPException(status_code=400, detail="No active plan found")
 
-    mapping = (
-        db.query(PlanModel)
-        .filter(PlanModel.plan_id == default_plan.id)
+    result = await db.execute(
+        select(PlanModel)
+        .where(PlanModel.plan_id == default_plan.id)
         .join(Model)
-        .filter((Model.is_default == True) & (Model.is_active == True))
-        .first()
+        .where((Model.is_default == True) & (Model.is_active == True))
     )
+    mapping = result.scalars().first()
+    
     if not mapping:
         raise HTTPException(
             status_code=400, detail=f"No default model for {default_plan.name} plan"
@@ -88,8 +92,8 @@ def register(register: Register, request: Request):
     )
 
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
 
     token = create_jwt_token(new_user.email, new_user.id)
 

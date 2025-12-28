@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Body, status, Response
-from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, or_, select
 from app.core.security import generate_github_jwt, get_current_user, verify_github_installation_ownership, encrypt_value, decrypt_value
 from db.models import User, PendingState, Tool, FederatedIdentity
 from pydantic import BaseModel
@@ -32,15 +32,23 @@ async def tool_auth_callback(
     """
     Verify the PKCE proof and link the installation to the user.
     """
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # 1. Retrieve the Pending State using the UUID
-    pending_state = db.query(PendingState).filter(
+    result = await db.execute(select(PendingState).where(
         PendingState.user_id == str(user.id),  # Ensure it belongs to this user
         PendingState.platform == payload.platform.lower()
-    ).first()
+    ))
+    pending_state = result.scalars().first()
+    
+    if not pending_state: # Check for None before accessing attributes
+         raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid or expired state. Please try connecting again."
+        )
+
     expires_at_aware = pending_state.expires_at.replace(tzinfo=timezone.utc)
-    if not pending_state or not pending_state.is_active or expires_at_aware < datetime.now(timezone.utc):
+    if not pending_state.is_active or expires_at_aware < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid or expired state. Please try connecting again."
@@ -69,10 +77,11 @@ async def tool_auth_callback(
             detail=f"Platform '{payload.platform}' is not supported for verification."
         )
 
-    existing_link = db.query(FederatedIdentity).filter(
+    result = await db.execute(select(FederatedIdentity).where(
         FederatedIdentity.installation_id == str(payload.installation_id),
         FederatedIdentity.provider == payload.platform
-    ).first()
+    ))
+    existing_link = result.scalars().first()
     
     if existing_link and existing_link.user_id != user.id:
          raise HTTPException(
@@ -97,14 +106,15 @@ async def tool_auth_callback(
         refresh_token=str( payload.refresh_token if payload.refresh_token else encrypted_installation_id)
     )
     db.add(new_identity)
-    db.delete(pending_state)
+    await db.delete(pending_state)
 
     # Increment user_count in Tools table
-    tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == payload.platform.lower()).first()
+    result = await db.execute(select(Tool).where(func.lower(Tool.tool_provider) == payload.platform.lower()))
+    tool_record = result.scalars().first()
     if tool_record:
         tool_record.user_count += 1
     
-    db.commit()
+    await db.commit()
 
     return {"status": "success", "message": "Repository access linked successfully."}
 
@@ -115,13 +125,14 @@ async def uninstall_app(
     installation_id: str, # Encrypted string
     user: User = Depends(get_current_user)
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # 1. Verify ownership locally - Exact Match
-    identity_link = db.query(FederatedIdentity).filter(
+    result = await db.execute(select(FederatedIdentity).where(
         FederatedIdentity.installation_id == installation_id,
         FederatedIdentity.user_id == user.id
-    ).first()
+    ))
+    identity_link = result.scalars().first()
 
     if not identity_link:
         raise HTTPException(
@@ -152,24 +163,26 @@ async def uninstall_app(
             # 4. Cleanup: Remove the link from your database
             
             # Decrement user_count
-            tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == identity_link.provider.lower()).first()
+            result = await db.execute(select(Tool).where(func.lower(Tool.tool_provider) == identity_link.provider.lower()))
+            tool_record = result.scalars().first()
             if tool_record and tool_record.user_count > 0:
                  tool_record.user_count -= 1
 
-            db.delete(identity_link)
-            db.commit()
+            await db.delete(identity_link)
+            await db.commit()
             return {"message": "App uninstalled successfully"}
         
         elif response.status_code == 404:
             # If not found on GitHub, remove from our DB as well to sync state
             
             # Decrement user_count
-            tool_record = db.query(Tool).filter(func.lower(Tool.tool_provider) == identity_link.provider.lower()).first()
+            result = await db.execute(select(Tool).where(func.lower(Tool.tool_provider) == identity_link.provider.lower()))
+            tool_record = result.scalars().first()
             if tool_record and tool_record.user_count > 0:
                  tool_record.user_count -= 1
 
-            db.delete(identity_link)
-            db.commit()
+            await db.delete(identity_link)
+            await db.commit()
             return {"message": "Installation already removed or not found"}
             
         else:
@@ -180,19 +193,20 @@ async def uninstall_app(
 
 
 @router.patch("/activate-deactivate/{installation_id}", summary="Activate or Deactivate a tool by ID")
-def activate_deactivate_tool(
+async def activate_deactivate_tool(
     installation_id: str, # Encrypted string
     is_active: bool,
     request: Request,
     user: User = Depends(get_current_user),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     # 1. Verify ownership locally - Exact Match
-    identity_link = db.query(FederatedIdentity).filter(
+    result = await db.execute(select(FederatedIdentity).where(
         FederatedIdentity.installation_id == installation_id,
         FederatedIdentity.user_id == user.id
-    ).first()
+    ))
+    identity_link = result.scalars().first()
 
     if not identity_link:
         raise HTTPException(
@@ -201,6 +215,6 @@ def activate_deactivate_tool(
         )
 
     if( is_active ):
-        return activate_row(db, FederatedIdentity, identity_link.id)
+        return await activate_row(db, FederatedIdentity, identity_link.id)
     elif (not is_active):
-        return deactivate_row(db, FederatedIdentity, identity_link.id)
+        return await deactivate_row(db, FederatedIdentity, identity_link.id)

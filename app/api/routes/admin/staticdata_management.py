@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from db.models import SystemArtifact, StaticdataCreate, StaticdataUpdate
 from app.core.security import require_admin_role_ids
@@ -17,23 +18,24 @@ router = APIRouter()
 
 
 @router.post("/create", summary="Create a new static artifact")
-def create_static_artifact(
+async def create_static_artifact(
     static_data: StaticdataCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     revision_id = static_data.revision_id or 1
 
-    existing = (
-        db.query(SystemArtifact)
-        .filter(
-            SystemArtifact.reference_key == static_data.reference_key,
-            SystemArtifact.revision_id == revision_id,
+    result = await db.execute(
+        select(SystemArtifact)
+        .where(
+            (SystemArtifact.reference_key == static_data.reference_key) &
+            (SystemArtifact.revision_id == revision_id)
         )
-        .first()
     )
+    existing = result.scalars().first()
+    
     if existing:
         raise HTTPException(status_code=409, detail="Static data already exists, consider updating it instead or changing the revision ID")
     
@@ -47,49 +49,53 @@ def create_static_artifact(
         )
    
         db.add(new_static_data)
-        db.commit()
-        db.refresh(new_static_data)
+        await db.commit()
+        await db.refresh(new_static_data)
         return {"message": "Static data created", "static_data": {"id": new_static_data.id, "reference_key": new_static_data.reference_key}}
 
 
 @router.get("/list", summary="List all static artifacts")
-def list_static_artifacts(
+async def list_static_artifacts(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    artifacts = db.query(SystemArtifact).order_by(SystemArtifact.reference_key.asc()).all()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(SystemArtifact).order_by(SystemArtifact.reference_key.asc()))
+    artifacts = result.scalars().all()
     return artifacts
 
 
 @router.delete("/delete/{artifact_id}", summary="Delete a static artifact")
-def delete_static_artifact(
+async def delete_static_artifact(
     artifact_id: str,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    artifact = db.query(SystemArtifact).filter(SystemArtifact.id == artifact_id).first()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(SystemArtifact).where(SystemArtifact.id == artifact_id))
+    artifact = result.scalars().first()
+    
     if not artifact:
         raise HTTPException(status_code=404, detail="Static artifact not found")
 
-    db.delete(artifact)
-    db.commit()
+    await db.delete(artifact)
+    await db.commit()
     return {"message": "Static artifact deleted"}
 
 from sqlalchemy.exc import IntegrityError
 
 @router.put("/update/{artifact_id}", summary="Update an existing static artifact")
-def update_static_artifact(
+async def update_static_artifact(
     artifact_id: str,
     static_data: StaticdataUpdate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-
-    artifact = db.query(SystemArtifact).filter(SystemArtifact.id == artifact_id).first()
+    result = await db.execute(select(SystemArtifact).where(SystemArtifact.id == artifact_id))
+    artifact = result.scalars().first()
+    
     if not artifact:
         raise HTTPException(status_code=404, detail="Static artifact not found")
 
@@ -103,10 +109,10 @@ def update_static_artifact(
         setattr(artifact, field, value)
 
     try:
-        db.commit()
-        db.refresh(artifact)
+        await db.commit()
+        await db.refresh(artifact)
     except IntegrityError:
-        db.rollback() 
+        await db.rollback() 
         raise HTTPException(
             status_code=409, 
             detail="Conflict: An artifact with this reference_key and revision_id already exists."
@@ -121,14 +127,14 @@ def update_static_artifact(
         },
     }
 @router.patch("/activate-deactivate/{artifact_id}", summary="Activate or deactivate a static artifact")
-def activate_deactivate_static_artifact(
+async def activate_deactivate_static_artifact(
     artifact_id: str,
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     if is_active:
-        return activate_row(db, SystemArtifact, artifact_id)
-    return deactivate_row(db, SystemArtifact, artifact_id)
+        return await activate_row(db, SystemArtifact, artifact_id)
+    return await deactivate_row(db, SystemArtifact, artifact_id)

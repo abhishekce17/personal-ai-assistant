@@ -2,6 +2,7 @@ from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from dotenv import load_dotenv
 import logging
 import os
+import redis.asyncio as redis
 
 load_dotenv()
 
@@ -49,7 +50,6 @@ class RedisCheckpoint:
                 return
             
             # Use async redis client
-            import redis.asyncio as redis
             client = redis.from_url(url)
             
             # Pattern match for LangGraph checkpoint keys

@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
-from sqlalchemy.orm import Session, defer
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from db.models import ModelCreate, Model, ModelUpdate
 from utils.db import deactivate_row, unset_default_for_all, activate_row
 from app.core.security import require_admin_role_ids
@@ -15,19 +16,21 @@ MASTER_ADMIN_ID = os.getenv("MASTER_ADMIN_ID")
 
 
 @router.post("/create", summary="Create a new AI model")
-def create_model(
+async def create_model(
     model_data: ModelCreate,
     request: Request = None,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-    existing = db.query(Model).filter(Model.model_name == model_data.model_name).first()
+    result = await db.execute(select(Model).where(Model.model_name == model_data.model_name))
+    existing = result.scalars().first()
+    
     if existing:
         raise HTTPException(status_code=409, detail="Model already exists")
 
     if model_data.is_default:
-        unset_default_for_all(db, Model)
+        await unset_default_for_all(db, Model)
 
     model = Model(
         model_name=model_data.model_name,
@@ -39,8 +42,8 @@ def create_model(
     )
 
     db.add(model)
-    db.commit()
-    db.refresh(model)
+    await db.commit()
+    await db.refresh(model)
 
     return {
         "message": "Model created",
@@ -48,21 +51,22 @@ def create_model(
     }
 
 @router.put("/update/{model_id}", summary="Update an existing AI model")
-def update_model(
+async def update_model(
     model_id: str,
     model_data: ModelUpdate,
     request: Request = None,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
-    model = db.query(Model).filter(Model.id == model_id).first()
+    result = await db.execute(select(Model).where(Model.id == model_id))
+    model = result.scalars().first()
 
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
     if model_data.is_default is True:
-        unset_default_for_all(db, Model)
+        await unset_default_for_all(db, Model)
 
     if model_data.model_name is not None:
         model.model_name = model_data.model_name
@@ -77,8 +81,8 @@ def update_model(
     if model_data.is_default is not None:
         model.is_default = model_data.is_default
 
-    db.commit()
-    db.refresh(model)
+    await db.commit()
+    await db.refresh(model)
 
     return {
         "message": "Model updated",
@@ -87,40 +91,43 @@ def update_model(
 
 
 @router.get("/list", summary="List all models")
-def list_models(
+async def list_models(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    models = db.query(Model).all()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Model))
+    models = result.scalars().all()
     return models
 
 
 @router.delete("/delete/{model_id}", summary="Delete a model")
-def delete_model(
+async def delete_model(
     model_id: str,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    model = db.query(Model).filter(Model.id == model_id).first()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Model).where(Model.id == model_id))
+    model = result.scalars().first()
+    
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    db.delete(model)
-    db.commit()
+    await db.delete(model)
+    await db.commit()
     return {"message": f"Model '{model.model_name}' deleted"}
 
 @router.patch("/activate-deactivate/{model_id}", summary="Activate or Deactivate a model by ID")
-def activate_deactivate_model(
+async def activate_deactivate_model(
     model_id: str,
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     if( is_active ):
-        return activate_row(db, Model, model_id)
+        return await activate_row(db, Model, model_id)
     elif (not is_active):
-        return deactivate_row(db, Model, model_id)
+        return await deactivate_row(db, Model, model_id)

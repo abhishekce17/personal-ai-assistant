@@ -1,6 +1,6 @@
 # routes/chat_interaction.py - Fixed WebSocket Handler with Proper Streaming
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from utils.agent_creator import AgentCreator
 from db.models import Model, User, PlanModel, FederatedIdentity, Tool
 from app.core.security import verify_jwt_token, get_tool_access_token
@@ -131,11 +131,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 authorized_plan_model = None
                 async with get_db_session() as db:
                     # Get user and model information
-                    user = (
-                        db.query(User.default_model_id, User.current_plan_id)
-                        .filter((User.id == id) & (User.is_active == True))
-                        .first()
+                    result = await db.execute(
+                        select(User.default_model_id, User.current_plan_id)
+                        .where((User.id == id) & (User.is_active == True))
                     )
+                    user = result.first()
+                    
                     if not user:
                         logger.warning(f"User not found: {id}")
                         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -144,32 +145,33 @@ async def websocket_endpoint(websocket: WebSocket):
                     default_model_id = user.default_model_id
                     current_plan_id = user.current_plan_id
 
-                    authorized_plan_model = (
-                        db.query(Model.model_name)
+                    result = await db.execute(
+                        select(Model.model_name)
                         .join(PlanModel, PlanModel.model_id == Model.id)
-                        .filter(
+                        .where(
                             (PlanModel.model_id == default_model_id)
                             & (PlanModel.plan_id == current_plan_id)
                             & (PlanModel.is_active == True)
                         )
-                        .scalar()
                     )
+                    authorized_plan_model = result.scalar_one_or_none()
 
                     # Fetch active tools linked by this user and globally enabled
-                    active_identities = (
-                        db.query(FederatedIdentity.provider, FederatedIdentity.refresh_token)
+                    result = await db.execute(
+                        select(FederatedIdentity.provider, FederatedIdentity.refresh_token)
                         .join(Tool, func.lower(Tool.tool_provider) == func.lower(FederatedIdentity.provider))
-                        .filter(
+                        .where(
                             (FederatedIdentity.user_id == id)
                             & (FederatedIdentity.installation_id.isnot(None))
                             & (FederatedIdentity.is_active == True)
                             & (Tool.is_active == True)
                         )
-                        .all()
                     )
+                    active_identities = result.all()
+                    
                     enabled_tools = [
-                        {"provider": identity.provider, "refresh_token": identity.refresh_token}
-                        for identity in active_identities
+                        {"provider": row.provider, "refresh_token": row.refresh_token}
+                        for row in active_identities
                     ]
 
                 if not authorized_plan_model:

@@ -2,7 +2,8 @@ import importlib
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from db.models import Plan, Tool, ToolCreate
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
@@ -18,16 +19,18 @@ router = APIRouter()
 
 
 @router.post("/create", summary="Create a new tool")
-def create_tool(
+async def create_tool(
     tool_data: ToolCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     tool_name_lowercase = tool_data.name.lower().strip()
 
-    existing = db.query(Tool).filter(Tool.tool_name == tool_name_lowercase).first()
+    result = await db.execute(select(Tool).where(Tool.tool_name == tool_name_lowercase))
+    existing = result.scalars().first()
+    
     if existing:
         raise HTTPException(status_code=409, detail="Tool already exists")
     
@@ -41,47 +44,52 @@ def create_tool(
             tool_image=tool_data.image,
         )
         db.add(tool)
-        db.commit()
-        db.refresh(tool)
+        await db.commit()
+        await db.refresh(tool)
         return {"message": "Tool created", "tool": {"id": tool.id, "name": tool.tool_name}}
     elif not tool_module:
         raise HTTPException(status_code=404, detail="Tool implementation not found")
 
 
 @router.get("/list", summary="List all tools")
-def list_tools(
+async def list_tools(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    tools = db.query(Tool).all()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Tool))
+    tools = result.scalars().all()
     return tools
 
 
 @router.delete("/delete/{tool_id}", summary="Delete a tool")
-def delete_tool(
+async def delete_tool(
     tool_id: str,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    tool = db.query(Tool).filter(Tool.id == tool_id).first()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Tool).where(Tool.id == tool_id))
+    tool = result.scalars().first()
+    
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
 
-    db.delete(tool)
-    db.commit()
+    await db.delete(tool)
+    await db.commit()
     return {"message": "Tool deleted"}
 
 @router.put("/update/{tool_id}", summary="Update an existing tool")
-def update_tool(
+async def update_tool(
     tool_id: str,
     tool_data: ToolCreate,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
-    tool = db.query(Tool).filter(Tool.id == tool_id).first()
+    db: AsyncSession = request.state.db
+    result = await db.execute(select(Tool).where(Tool.id == tool_id))
+    tool = result.scalars().first()
+    
     if not tool:
         raise HTTPException(status_code=404, detail="Tool not found")
 
@@ -98,10 +106,10 @@ def update_tool(
         tool.tool_image = tool_data.image
 
     try:
-        db.commit()
-        db.refresh(tool)
+        await db.commit()
+        await db.refresh(tool)
     except IntegrityError:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=409, detail="Tool name already exists")
 
     return {
@@ -116,15 +124,15 @@ def update_tool(
     }
 
 @router.patch("/activate-deactivate/{tool_id}", summary="Activate or Deactivate a tool by ID")
-def activate_deactivate_tool(
+async def activate_deactivate_tool(
     tool_id: str,
     is_active: bool,
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
-    db: Session = request.state.db
+    db: AsyncSession = request.state.db
 
     if( is_active ):
-        return activate_row(db, Tool, tool_id)
+        return await activate_row(db, Tool, tool_id)
     elif (not is_active):
-        return deactivate_row(db, Tool, tool_id)
+        return await deactivate_row(db, Tool, tool_id)

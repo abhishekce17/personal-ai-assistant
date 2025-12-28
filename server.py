@@ -12,6 +12,7 @@ from app.api.routes.admin import plan_management
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+import uvicorn
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,4 @@ async def health_check():
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
