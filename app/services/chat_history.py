@@ -11,13 +11,7 @@ from app.core.security import encrypt_value, decrypt_value
 from db.db import DBEngine
 from db.models import ChatSessionEmbedding
 
-# Try importing Vector DB libraries (Graceful fallback if not installed)
-try:
-    from langchain_pinecone import PineconeVectorStore
-    from langchain_ollama import OllamaEmbeddings
-except ImportError:
-    PineconeVectorStore = None
-    OllamaEmbeddings = None
+from app.services.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +20,7 @@ class ChatHistoryService:
     Service to handle the Dual-Persistence of Chat History.
     1. 'Cold' Storage: PostgreSQL (Encrypted) for exact history.
     2. 'Hot' Storage: Redis (Already handled by Checkpointer).
-    3. 'Long-Term' Storage: Pinecone (Vector) for RAG Search.
+    3. 'Long-Term' Storage: Qdrant (Vector) for RAG Search.
     """
 
     @staticmethod
@@ -92,6 +86,7 @@ class ChatHistoryService:
         finally:
             db.close()
 
+    
     @staticmethod
     async def save_interaction_background(
         user_id: str,
@@ -114,15 +109,10 @@ class ChatHistoryService:
         )
         
         # 2. Vector DB (Async Native) - Can stay in main loop
-        if PineconeVectorStore and os.getenv("PINECONE_API_KEY"):
+        vector_store = await VectorStoreService.get_qdrant_store()
+        
+        if vector_store:
             try:
-                embeddings = OllamaEmbeddings(model="nomic-embed-text")
-                vector_store = PineconeVectorStore(
-                    index_name=os.getenv("PINECONE_INDEX_NAME", "chat_history"),
-                    embedding=embeddings,
-                    pinecone_api_key=os.getenv("PINECONE_API_KEY")
-                )
-
                 documents = [
                     Document(
                         page_content=user_message,
@@ -144,25 +134,31 @@ class ChatHistoryService:
                     )
                 ]
                 await vector_store.aadd_documents(documents)
-                logger.info("✅ [Vector] Saved to Pinecone")
+                logger.info("✅ [Vector] Saved to Qdrant")
             except Exception as e:
                 logger.error(f"❌ [Vector Failed]: {e}")
         else:
-            if not PineconeVectorStore:
-                logger.warning("⚠️ Pinecone libraries not installed.")
+            # We check specific env var to warn, or just rely on the service to log errors
+            if os.getenv("QDRANT_URL"):
+                 logger.error("⚠️ Failed to get Qdrant store instance.")
 
     @staticmethod
-    def _get_latest_session_sync(user_id: str):
+    def _get_session_sync(user_id: str, thread_id: str):
         """
-        BLOCKING: Retrieve the most recent chat session for a user.
+        BLOCKING: Retrieve a chat session by thread_id.
+        thread_id is REQUIRED.
         Returns: (thread_id, decrypted_content) or (None, None)
         """
+        if not thread_id:
+             return None, None
+
         db: Session = DBEngine().SessionLocal()
         try:
-            # Get the most recently updated session
+            # Specific Thread
             session = db.query(ChatSessionEmbedding).filter(
-                ChatSessionEmbedding.user_id == user_id
-            ).order_by(ChatSessionEmbedding.updated_at.desc()).first()
+                ChatSessionEmbedding.user_id == user_id,
+                ChatSessionEmbedding.thread_id == thread_id
+            ).first()
 
             if session:
                 try:
@@ -179,10 +175,11 @@ class ChatHistoryService:
             db.close()
 
     @staticmethod
-    async def get_latest_session_background(user_id: str):
+    async def get_session_background(user_id: str, thread_id: str):
         """
         Async wrapper to fetch history without blocking main loop.
+        thread_id is REQUIRED.
         """
         return await asyncio.to_thread(
-            ChatHistoryService._get_latest_session_sync, user_id
+            ChatHistoryService._get_session_sync, user_id, thread_id
         )
