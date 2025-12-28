@@ -8,6 +8,7 @@ dependencies = [
     "bcrypt>=5.0.0",
     "fastapi[standard]>=0.115.14",
     "imapclient>=3.0.1",
+    "langchain>=1.2.0",
     "langchain-cohere>=0.4.4",
     "langchain-community>=0.3.26",
     "langchain-ollama>=0.3.3",

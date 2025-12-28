@@ -91,6 +91,14 @@ async def register(register: Register, request: Request):
         avatar="",
     )
 
+    # Increment counts
+    default_plan.subscription_count += 1
+ 
+    result = await db.execute(select(Model).where(Model.id == mapping.model_id))
+    default_model = result.scalars().first()
+    if default_model:
+        default_model.user_count += 1
+
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)

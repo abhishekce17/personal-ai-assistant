@@ -1,4 +1,4 @@
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from concurrent.futures import ThreadPoolExecutor
@@ -9,7 +9,7 @@ import asyncio
 import logging
 import redis
 import queue
-from langchain.callbacks.manager import CallbackManager
+from langchain_core.callbacks.manager import CallbackManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
