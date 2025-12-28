@@ -313,21 +313,48 @@ class BillingInformation(BaseMixin, Base):
     plan = relationship("Plan")
 
 
-class ChatSessionEmbedding(BaseMixin, Base):
-    __tablename__ = "chat_session_embeddings"
+class ChatSession(BaseMixin, Base):
+    __tablename__ = "chat_sessions"
 
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     thread_id = Column(String, unique=True, index=True, nullable=False)
-
-    content = Column(Text, nullable=False)  # full chat as JSON or text
-    topic = Column(String(255), nullable=True)  # short conversation title
-
-    embedding_id = Column(
-        String, unique=True, index=True, nullable=True
-    )  # links to vector row in Pinecone
-    source = Column(String, default="chat")  # for categorization or doc ingestion
-
+    
+    topic = Column(String(255), nullable=True)
+    
+    interactions = relationship(
+        "ChatInteraction", 
+        back_populates="session", 
+        cascade="all, delete-orphan",
+        order_by="ChatInteraction.created_at"  # <--- RECOMMENDED ADDITION
+    )
     user = relationship("User", back_populates="chat_sessions")
+
+class ChatInteraction(BaseMixin, Base):
+    __tablename__ = "chat_interactions"
+
+    thread_id = Column(String, ForeignKey("chat_sessions.thread_id"), nullable=False, index=True)
+    content = Column(Text, nullable=False) 
+
+    session = relationship("ChatSession", back_populates="interactions")
+    __table_args__ = (
+        Index('idx_thread_interaction_time', 'thread_id', 'created_at'),
+    )
+
+# class ChatSessionEmbedding(BaseMixin, Base):
+#     __tablename__ = "chat_session_embeddings"
+
+#     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+#     thread_id = Column(String, unique=True, index=True, nullable=False)
+
+#     content = Column(Text, nullable=False)  # full chat as JSON or text
+#     topic = Column(String(255), nullable=True)  # short conversation title
+
+#     embedding_id = Column(
+#         String, unique=True, index=True, nullable=True
+#     )  # links to vector row in Pinecone
+#     source = Column(String, default="chat")  # for categorization or doc ingestion
+
+#     user = relationship("User", back_populates="chat_sessions")
 
 
 class SystemArtifact(BaseMixin, Base):

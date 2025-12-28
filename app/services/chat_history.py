@@ -8,7 +8,7 @@ from langchain_core.documents import Document
 import asyncio
 from app.core.security import encrypt_value, decrypt_value
 from db.db import DBEngine
-from db.models import ChatSessionEmbedding
+from db.models import ChatInteraction, ChatSession
 
 from app.services.vector_store import VectorStoreService
 
@@ -22,9 +22,6 @@ class ChatHistoryService:
     3. 'Long-Term' Storage: Qdrant (Vector) for RAG Search.
     """
 
-
-
-    
     @staticmethod
     async def get_session_background(user_id: str, thread_id: str):
         """
@@ -66,48 +63,69 @@ class ChatHistoryService:
         topic: str = None
     ) -> str:
         """
-        Non-blocking SQL save using AsyncSession.
+        Saves a Q&A pair to the SQL database using the normalized schema.
+        - Creates a ChatSession if it doesn't exist.
+        - Appends a new ChatInteraction row.
         """
         async_session_factory = DBEngine().AsyncSessionLocal
         async with async_session_factory() as db:
             try:
-                timestamp = datetime.now().isoformat()
-                plain_text_log = f"\n[{timestamp}] User: {user_message}\n[{timestamp}] AI: {ai_response}"
+                timestamp = datetime.utcnow()
+
+                interaction_data = {
+                    "user": user_message,
+                    "ai": ai_response,
+                    "timestamp": timestamp.isoformat()
+                }
                 
-                # CPU Bound (Keep in thread if very heavy, but usually fine for short text)
-                encrypted_content = encrypt_value(plain_text_log)
+                # Encrypt the JSON payload (CPU bound, but fast for small JSON)
+                json_payload = json.dumps(interaction_data)
+                encrypted_content = encrypt_value(json_payload)
 
-                # IO Bound: Database (Async)
-                stmt = select(ChatSessionEmbedding).where(ChatSessionEmbedding.thread_id == thread_id).with_for_update()
+                # 2. Check if the Session (Thread) already exists
+                # We use a simple select first to avoid locking if we don't have to
+                stmt = select(ChatSession).where(ChatSession.thread_id == thread_id)
                 result = await db.execute(stmt)
-                session_embedding = result.scalars().first()
+                session = result.scalars().first()
 
-                if session_embedding:
-                    try:
-                        current_history = decrypt_value(session_embedding.content) or ""
-                        updated_history = current_history + plain_text_log
-                        session_embedding.content = encrypt_value(updated_history)
-                        session_embedding.updated_at = datetime.now()
-                        if topic:
-                            session_embedding.topic = topic
-                    except Exception as e:
-                        logger.error(f"Failed to append to encrypted history: {e}")
-                        session_embedding.content = encrypt_value(plain_text_log)
+                if session:
+                    if topic and session.topic != topic:
+                        session.topic = topic
+                    
+                    new_interaction = ChatInteraction(
+                        thread_id=thread_id,  # Links to the session via thread_id
+                        content=encrypted_content,
+                    )
+                    db.add(new_interaction)
+                    
                 else:
-                    new_session = ChatSessionEmbedding(
-                        id=str(uuid.uuid4()),
+                    # --- SCENARIO B: NEW CHAT ---
+                    # We need to create the "Folder" (Session) AND the first "File" (Interaction)
+                    
+                    new_session = ChatSession(
                         user_id=user_id,
                         thread_id=thread_id,
-                        content=encrypted_content,
                         topic=topic or "New Conversation",
-                        is_active=True
                     )
                     db.add(new_session)
-                
+                    
+                    new_interaction = ChatInteraction(
+                        thread_id=thread_id,
+                        content=encrypted_content,
+                    )
+                    db.add(new_interaction)
+
                 await db.commit()
-                logger.info("✅ [SQL] Saved Encrypted History (Async)")
-                return timestamp
-                
+                logger.info(f"✅ [SQL] Saved Interaction to thread {thread_id}")
+                return timestamp.isoformat()
+
+            except IntegrityError:
+                logger.warning(f"⚠️ Race condition detected for thread {thread_id}. Retrying save...")
+                await db.rollback()
+                return await _save_to_sql_async(
+                    user_id, thread_id, user_message, ai_response, topic
+                )
+
             except Exception as e:
                 logger.error(f"❌ [SQL Async Failed]: {e}")
                 await db.rollback()
