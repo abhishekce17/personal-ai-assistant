@@ -19,6 +19,6 @@ async def lifespan(app: FastAPI):
     from app.api.routes.user.chat_interaction import UserAgentManager
 
     UserAgentManager.cleanup_all()  # 🔐 Proper Redis close
-    RedisCheckpoint.close_connection()
+    await RedisCheckpoint.close_connection()
     engine.dispose()
     logger.info("🔻 Database and Redis connections closed")

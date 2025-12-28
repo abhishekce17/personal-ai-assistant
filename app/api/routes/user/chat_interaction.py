@@ -1,7 +1,6 @@
 # routes/chat_interaction.py - Fixed WebSocket Handler with Proper Streaming
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
 from sqlalchemy import func
-from langgraph.checkpoint.redis import RedisSaver
 from utils.agent_creator import AgentCreator
 from db.models import Model, User, PlanModel, FederatedIdentity, Tool
 from app.core.security import verify_jwt_token, get_tool_access_token
@@ -17,13 +16,15 @@ import threading
 import logging
 import uuid
 import os
+import asyncio
+from app.services.chat_history import ChatHistoryService
 
 load_dotenv()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-redis_saver = RedisCheckpoint.get_saver()
+
 
 convo_type: ConversationType = ConversationType.NON_STREAM
 
@@ -177,6 +178,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     return
 
                 logger.info(f"WebSocket connection established for user: {id}")
+                
+                 # Get async saver here
+                redis_saver = await RedisCheckpoint.get_saver()
+                
                 socket_llm = UserAgentManager.get_user_llm(
                     id, model_name=authorized_plan_model
                 )
@@ -246,6 +251,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 )
                         else:
                             # Fallback to non-streaming response
+                            fallback_response = ""
                             try:
                                 fallback_response = await socket_agent.talk_non_stream(
                                     data, str(thread_id)
@@ -260,13 +266,28 @@ async def websocket_endpoint(websocket: WebSocket):
                                 await websocket.send_text(
                                     f"\n❌ Error: {str(fallback_error)}"
                                 )
+                            full_response = fallback_response
 
                         # Send end-of-response marker
-                        if response_started:
-                            await websocket.send_text("\n✅")
+                        if response_started or (convo_type != ConversationType.STREAM):
+                            if response_started:
+                                await websocket.send_text("\n✅")
+                            
                             logger.info(
                                 f"Completed response for {id} ({len(full_response)} chars)"
                             )
+
+                            # --- Background Save (Fire-and-Forget) ---
+                            if full_response:
+                                asyncio.create_task(
+                                    ChatHistoryService.save_interaction_background(
+                                        user_id=id,
+                                        thread_id=str(thread_id),
+                                        user_message=data,
+                                        ai_response=full_response,
+                                        topic=None # TODO: Generate topic in another background task
+                                    )
+                                )
 
                     except WebSocketDisconnect:
                         logger.info(f"🔌 Client {id} disconnected")
@@ -298,10 +319,14 @@ async def websocket_endpoint(websocket: WebSocket):
         if id:
             # 1. Cleanup Redis Memory (Orphaned context)
             if thread_id:
-                RedisCheckpoint.delete_thread_memory(str(thread_id))
+                await RedisCheckpoint.delete_thread_memory(str(thread_id))
 
             if RedisCheckpoint._redis_saver:
-                RedisCheckpoint.close_connection()
+                # We don't necessarily close the global connection pool here, 
+                # but if close_connection is called, it should be awaited.
+                # Usually we keep connection open for other users.
+                # RedisCheckpoint.close_connection() is global shutdown.
+                pass
             logger.info(f"🧹 Cleaning up Redis connection for disconnected user: {id}")
             UserAgentManager.remove_user_llm(id)
             remaining_connections = UserAgentManager.get_active_connections_count()

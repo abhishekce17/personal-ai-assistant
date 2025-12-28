@@ -201,6 +201,7 @@ class Model(BaseMixin, Base):
     tool_support = Column(Boolean, default=True)
     user_count = Column(Integer, default=0)
     model_image = Column(String, nullable=True, default="")
+    context_window = Column(Integer, nullable=True) # Max tokens capability
     is_default = Column(Boolean, default=False)
 
 
@@ -319,20 +320,12 @@ class ChatSessionEmbedding(BaseMixin, Base):
     thread_id = Column(String, unique=True, index=True, nullable=False)
 
     content = Column(Text, nullable=False)  # full chat as JSON or text
-    summary = Column(Text, nullable=True)  # optional summarized version
+    topic = Column(String(255), nullable=True)  # short conversation title
 
     embedding_id = Column(
-        String, unique=True, index=True, nullable=False
+        String, unique=True, index=True, nullable=True
     )  # links to vector row in Pinecone
     source = Column(String, default="chat")  # for categorization or doc ingestion
-
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-    )
-    is_active = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="chat_sessions")
 

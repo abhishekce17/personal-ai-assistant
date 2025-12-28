@@ -110,23 +110,18 @@ class AgentCreator:
             return agent
 
     async def talk_non_stream(self, data: str, thread_id: str) -> str:
-        """Fallback non-streaming method (Runs sync invoke in a thread)"""
+        """Fallback non-streaming method (Native Async)"""
         if not self.agent:
             raise RuntimeError("Agent is not set up. Call agent_creator() first.")
         if not thread_id:
             raise ValueError("user id must be provided as thread_id.")
 
         try:
-            # Define synchronous worker function
-            def _run_invokation():
-                config = {"configurable": {"thread_id": thread_id}}
-                return self.agent.invoke(
-                    input={"messages": [("human", data)]}, config=config
-                )
-
-            # Offload to thread pool to avoid blocking event loop
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(shared_executor, _run_invokation)
+            config = {"configurable": {"thread_id": thread_id}}
+            # Native async call
+            result = await self.agent.ainvoke(
+                input={"messages": [("human", data)]}, config=config
+            )
 
             # Extract final response
             if "messages" in result and result["messages"]:
@@ -154,16 +149,15 @@ class AgentCreator:
             self.streaming_callback.token_queue = asyncio.Queue()
             self.streaming_callback.full_content = ""
 
-            # Run agent in thread
-            def run_agent():
+            # Start agent in background task (non-blocking)
+            async def run_agent_async():
                 config = {"configurable": {"thread_id": thread_id}}
-                return self.agent.invoke(
+                await self.agent.ainvoke(
                     input={"messages": [("human", data)]}, config=config
                 )
 
-            # Start agent in background thread
-            loop = asyncio.get_running_loop()
-            agent_task = loop.run_in_executor(shared_executor, run_agent)
+            # Fire and forget (the callback will feed the queue)
+            agent_task = asyncio.create_task(run_agent_async())
 
             # Stream tokens as they come
             tokens_yielded = 0
@@ -171,6 +165,11 @@ class AgentCreator:
                 try:
                     # Check if agent is done
                     if agent_task.done():
+                        # Check for exceptions in the task
+                        exc = agent_task.exception()
+                        if exc:
+                            raise exc
+                        
                         # Get any remaining tokens
                         while True:
                             try:
@@ -185,40 +184,40 @@ class AgentCreator:
 
                     # Get token with timeout
                     try:
-                        token = await self.streaming_callback.token_queue.get()
+                        token = await asyncio.wait_for(self.streaming_callback.token_queue.get(), timeout=0.05)
                         if token is None:  # End marker
                             break
                         yield token
                         tokens_yielded += 1
-                    except queue.Empty:
+                    except asyncio.TimeoutError:
                         # No token yet, continue waiting
-                        await asyncio.sleep(0.05)
                         continue
 
                 except Exception as e:
                     logger.error(f"Error getting token: {e}")
                     break
 
-            # Wait for agent to complete
+            # Wait for agent to complete (structure already ensures done, but good practice)
             await agent_task
 
             # If no tokens were streamed, fall back to full response
             if tokens_yielded == 0:
                 result = agent_task.result()
-                if "messages" in result and result["messages"]:
+                # If ainvoke returns "None" or similar (it shouldn't if configured right), handle it
+                if result and "messages" in result and result["messages"]:
                     last_message = result["messages"][-1]
                     if hasattr(last_message, "content"):
                         content = last_message.content
                         for char in content:
                             yield char
-                            await asyncio.sleep(0.03)
+                            await asyncio.sleep(0.01)
 
         except Exception as e:
             error_msg = (
                 f"❌ Error during callback streaming: {type(e).__name__} - {str(e)}"
             )
             logger.error(error_msg)
-            logger.error(f"Full traceback:\n{traceback.format_exc()}")
+            # logger.error(f"Full traceback:\n{traceback.format_exc()}")
             yield error_msg
 
     async def talk_stream(self, data: str, thread_id: str):
