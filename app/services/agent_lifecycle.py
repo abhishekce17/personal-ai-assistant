@@ -27,5 +27,5 @@ async def lifespan(app: FastAPI):
 
     UserAgentManager.cleanup_all()  # 🔐 Proper Redis close
     await RedisCheckpoint.close_connection()
-    engine.dispose()
+    await engine.dispose()
     logger.info("🔻 Database and Redis connections closed")
