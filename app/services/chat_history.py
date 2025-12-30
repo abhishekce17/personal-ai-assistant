@@ -3,12 +3,13 @@ import os
 import uuid
 from datetime import datetime
 from langchain_core.documents import Document
-
-# --- Imports (Dependencies) ---
+from sqlalchemy import select
 import asyncio
 from app.core.security import encrypt_value, decrypt_value
 from db.db import DBEngine
 from db.models import ChatInteraction, ChatSession
+import json
+from sqlalchemy.exc import IntegrityError
 
 from app.services.vector_store import VectorStoreService
 
@@ -22,37 +23,37 @@ class ChatHistoryService:
     3. 'Long-Term' Storage: Qdrant (Vector) for RAG Search.
     """
 
-    @staticmethod
-    async def get_session_background(user_id: str, thread_id: str):
-        """
-        Async retrieval of chat session.
-        Uses AsyncSession directly (Non-blocking).
-        """
-        if not thread_id:
-             return None, None
+    # @staticmethod
+    # async def get_session_background(user_id: str, thread_id: str):
+    #     """
+    #     Async retrieval of chat session.
+    #     Uses AsyncSession directly (Non-blocking).
+    #     """
+    #     if not thread_id:
+    #          return None, None
 
-        async_session_factory = DBEngine().AsyncSessionLocal
-        async with async_session_factory() as db:
-            try:
-                # Specific Thread
-                stmt = select(ChatSessionEmbedding).where(
-                    (ChatSessionEmbedding.user_id == user_id) &
-                    (ChatSessionEmbedding.thread_id == thread_id)
-                )
-                result = await db.execute(stmt)
-                session = result.scalars().first()
+    #     async_session_factory = DBEngine().AsyncSessionLocal
+    #     async with async_session_factory() as db:
+    #         try:
+    #             # Specific Thread
+    #             stmt = select(ChatSession).where(
+    #                 (ChatSession.user_id == user_id) &
+    #                 (ChatSession.thread_id == thread_id)
+    #             )
+    #             result = await db.execute(stmt)
+    #             session = result.scalars().first()
 
-                if session:
-                    try:
-                        decrypted_content = decrypt_value(session.content)
-                        return session.thread_id, decrypted_content
-                    except Exception as e:
-                        logger.error(f"Failed to decrypt session {session.thread_id}: {e}")
-                        return None, None
-                return None, None
-            except Exception as e:
-                logger.error(f"Failed to fetch session: {e}")
-                return None, None
+    #             if session:
+    #                 try:
+    #                     decrypted_content = decrypt_value(session.content)
+    #                     return session.thread_id, decrypted_content
+    #                 except Exception as e:
+    #                     logger.error(f"Failed to decrypt session {session.thread_id}: {e}")
+    #                     return None, None
+    #             return None, None
+    #         except Exception as e:
+    #             logger.error(f"Failed to fetch session: {e}")
+    #             return None, None
 
     @staticmethod
     async def _save_to_sql_async(
@@ -173,6 +174,7 @@ class ChatHistoryService:
                         }
                     )
                 ]
+                print({"documents" : documents})
                 await vector_store.aadd_documents(documents)
                 logger.info("✅ [Vector] Saved to Qdrant")
             except Exception as e:

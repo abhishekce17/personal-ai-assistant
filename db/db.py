@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from contextlib import asynccontextmanager
 from sqlalchemy import text
 from dotenv import load_dotenv
 import os
@@ -44,7 +45,7 @@ class DBEngine:
     def engine(self):
         return self._engine
 
-
+@asynccontextmanager
 async def get_db_session() -> AsyncSession:
     """Dependency for FastAPI Routes usually"""
     async_session_factory = DBEngine().AsyncSessionLocal

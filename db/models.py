@@ -175,7 +175,7 @@ class User(BaseMixin, Base):
     plan = relationship("Plan", back_populates="users")
     default_model = relationship("Model")
     plan_history = relationship("UserPlanHistory", back_populates="user")
-    chat_sessions = relationship("ChatSessionEmbedding", back_populates="user")
+    chat_sessions = relationship("ChatSession", back_populates="user")
     federated_identities = relationship("FederatedIdentity", back_populates="user", cascade="all, delete-orphan")
 
 class FederatedIdentity(BaseMixin, Base):

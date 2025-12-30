@@ -28,7 +28,7 @@ class VectorStoreService:
             # Initialize Client explicitly
             client = QdrantClient(url=url, api_key=api_key)
             
-            collection_name = os.getenv("QDRANT_COLLECTION_NAME", "chat_history")
+            collection_name = os.getenv("QDRANT_COLLECTION_NAME")
             
             # Check if collection exists
             if not client.collection_exists(collection_name):

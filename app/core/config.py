@@ -20,7 +20,7 @@ class RedisCheckpoint:
             # Use contextlib to manually enter context manager
             cls._redis_context = AsyncRedisSaver.from_conn_string(
                 os.getenv("LOCAL_REDIS_URL"),
-                connection_kwargs={"max_connections": 100}
+                connection_args={"max_connections": 100}
             )
             cls._redis_saver = (
                 await cls._redis_context.__aenter__()

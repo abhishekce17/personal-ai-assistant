@@ -109,6 +109,7 @@ async def websocket_endpoint(websocket: WebSocket):
     id = None
     socket_agent = None
     db = None
+    thread_id = None
 
     try:
         # Authentication
