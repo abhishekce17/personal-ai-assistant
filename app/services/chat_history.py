@@ -23,37 +23,46 @@ class ChatHistoryService:
     3. 'Long-Term' Storage: Qdrant (Vector) for RAG Search.
     """
 
-    # @staticmethod
-    # async def get_session_background(user_id: str, thread_id: str):
-    #     """
-    #     Async retrieval of chat session.
-    #     Uses AsyncSession directly (Non-blocking).
-    #     """
-    #     if not thread_id:
-    #          return None, None
+    @staticmethod
+    async def get_session_history(user_id: str, thread_id: str):
+        """
+        Async retrieval of chat session history.
+        Sorts by oldest first.
+        """
+        if not thread_id:
+             return []
 
-    #     async_session_factory = DBEngine().AsyncSessionLocal
-    #     async with async_session_factory() as db:
-    #         try:
-    #             # Specific Thread
-    #             stmt = select(ChatSession).where(
-    #                 (ChatSession.user_id == user_id) &
-    #                 (ChatSession.thread_id == thread_id)
-    #             )
-    #             result = await db.execute(stmt)
-    #             session = result.scalars().first()
+        async_session_factory = DBEngine().AsyncSessionLocal
+        async with async_session_factory() as db:
+            try:
+                # Fetch interactions for the thread, sorted by creation time (Oldest First)
+                stmt = (
+                    select(ChatInteraction)
+                    .join(ChatSession)
+                    .where(
+                        (ChatSession.user_id == user_id) &
+                        (ChatSession.thread_id == thread_id)
+                    )
+                    .order_by(ChatInteraction.created_at.asc())
+                )
+                result = await db.execute(stmt)
+                interactions = result.scalars().all()
 
-    #             if session:
-    #                 try:
-    #                     decrypted_content = decrypt_value(session.content)
-    #                     return session.thread_id, decrypted_content
-    #                 except Exception as e:
-    #                     logger.error(f"Failed to decrypt session {session.thread_id}: {e}")
-    #                     return None, None
-    #             return None, None
-    #         except Exception as e:
-    #             logger.error(f"Failed to fetch session: {e}")
-    #             return None, None
+                history = []
+                for interaction in interactions:
+                    try:
+                        # Decrypt content
+                        decrypted_json = decrypt_value(interaction.content)
+                        data = json.loads(decrypted_json)
+                        history.append(data)
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt interaction {interaction.id}: {e}")
+                
+                return history
+            except Exception as e:
+                logger.error(f"Failed to fetch session history: {e}")
+                return []
+
 
     @staticmethod
     async def _save_to_sql_async(

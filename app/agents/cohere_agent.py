@@ -22,6 +22,7 @@ class Agents:
             cohere_api_key=cohere_api_key,
             model=self.__model,
             temperature=0,
+            max_retries=0, # Disable auto-retries to save quota on 429s
         )
         return llm
 

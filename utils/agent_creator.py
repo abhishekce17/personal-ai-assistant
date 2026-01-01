@@ -213,11 +213,11 @@ class AgentCreator:
 
         except Exception as e:
             error_msg = (
-                f"❌ Error during callback streaming: {type(e).__name__} - {str(e)}"
+                f"Error during callback streaming: {type(e).__name__} - {str(e)}"
             )
             logger.error(error_msg)
-            # logger.error(f"Full traceback:\n{traceback.format_exc()}")
-            yield error_msg
+            # Re-raise to let the caller handle it (e.g. stop retrying)
+            raise e
 
     async def talk_stream(self, data: str, thread_id: str):
         """
@@ -230,19 +230,15 @@ class AgentCreator:
             logger.info("Attempting callback-based streaming...")
             token_count = 0
             async for token in self.talk_stream_with_callback(data, thread_id):
-                if not token.startswith("❌"):
-                    token_count += 1
-                    yield token
-                    if token_count >= 5:  # If we get several tokens, this method works
-                        continue
-                else:
-                    # Error in callback method, try next approach
-                    logger.info("Callback streaming failed, trying word-by-word...")
-                    break
-            else:
-                # Callback streaming completed successfully
-                logger.info(f"Callback streaming completed with {token_count} tokens")
-                return
+                # We expect clean strings here. If exceptions occur in generator, they should be raised.
+                token_count += 1
+                yield token
+
+            # Callback streaming completed successfully
+            logger.info(f"Callback streaming completed with {token_count} tokens")
+            return
 
         except Exception as e:
-            logger.info(f"Callback streaming failed: {e}")
+            logger.error(f"Callback streaming failed: {e}")
+            yield f"Error: {str(e)}"
+            return

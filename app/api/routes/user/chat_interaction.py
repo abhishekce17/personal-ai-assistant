@@ -1,5 +1,6 @@
 # routes/chat_interaction.py - Fixed WebSocket Handler with Proper Streaming
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
+from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy import func, select
 from utils.agent_creator import AgentCreator
 from db.models import Model, User, PlanModel, FederatedIdentity, Tool
@@ -114,6 +115,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Authentication
         token = websocket.headers.get("Authorization", "").replace("Bearer ", "")
+        thread_id = websocket.headers.get("x-session-thread-id", None)
         if not token:
             logger.warning("No token provided")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -191,9 +193,6 @@ async def websocket_endpoint(websocket: WebSocket):
                 model = socket_llm.get_model_name()
 
                 await websocket.send_text(f"Connected as {id} using {model}")
-
-                thread_id = uuid.uuid4()
-
                 tools = []
                 try:
                     for tool_entry in enabled_tools:
@@ -218,6 +217,38 @@ async def websocket_endpoint(websocket: WebSocket):
                     tools_list=tools,
                 )
                 socket_agent.agent_creator()
+
+                # --- Hydration Logic (Restore History from SQL to Redis) ---
+                try:
+                    if thread_id:
+                        history_data = await ChatHistoryService.get_session_history(id, str(thread_id))
+                        history_messages = []
+                        for h in history_data:
+                            history_messages.append(HumanMessage(content=h['user']))
+                            history_messages.append(AIMessage(content=h['ai']))
+
+                        logger.info(f"🔍 Checking Hydration: HistoryCount={len(history_messages)} Agent={'Exists' if socket_agent.agent else 'None'}")
+                    
+                        if len(history_messages) > 0 and socket_agent.agent:
+                            config = {"configurable": {"thread_id": str(thread_id)}}
+                            current_state = await socket_agent.agent.aget_state(config)
+                        
+                            logger.info(f"🔍 Current Redis State: Messages={'Yes' if current_state.values and current_state.values.get('messages') else 'No'}")
+
+                            # If no messages in Redis state, inject from SQL
+                            if not current_state.values or not current_state.values.get("messages"):
+                                logger.info(f"🚰 Hydrating Redis from SQL History for thread {thread_id}")
+                                await socket_agent.agent.aupdate_state(
+                                    config,
+                                    {"messages": history_messages}
+                                )
+                                logger.info("✅ Hydration Complete")
+                            else:
+                                logger.info("⏭️  Redis already has messages, skipping hydration.")
+                    else:
+                        thread_id = uuid.uuid4()
+                except Exception as e:
+                    logger.error(f"Error loading previous session for user {id}: {e}")
 
                 # Main chat loop with improved streaming
                 while True:

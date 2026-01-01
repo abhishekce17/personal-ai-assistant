@@ -53,14 +53,19 @@ class RedisCheckpoint:
             client = redis.from_url(url)
             
             # Pattern match for LangGraph checkpoint keys
+            # Note: RedisSaver keys usually look like [namespace, thread_id, ...] encoded
+            # If checking keys manually, better to use *{thread_id}* if we are sure of uniqueness
+            # But let's try the standard LangGraph RedisSaver key structure
             patterns = [
-                f"checkpoint:{{{thread_id}}}:*",
-                f"checkpoint_writes:{{{thread_id}}}:*"
+                f"checkpoint:/*{thread_id}*",
+                f"checkpoint_writes:/*{thread_id}*",
+                f"*{thread_id}*" # Catch-all for safety if namespace prefix varies
             ]
             
             count = 0
             for pattern in patterns:
                 keys = await client.keys(pattern)
+                logger.info(f"Found {len(keys)} keys for pattern {pattern}")
                 if keys:
                     await client.delete(*keys)
                     count += len(keys)

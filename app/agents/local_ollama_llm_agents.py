@@ -5,7 +5,7 @@ class Agents:
     def __init__(self):
         self.__model = ""
 
-    def create_agent(self, model=""):
+    def llm_setup(self, model=""):
         if not model:
             raise ValueError("Model name is required")
         self.__model = model
