@@ -19,6 +19,7 @@ class Agents:
             api_key=open_router_api_key,
             base_url="https://openrouter.ai/api/v1",
         )
+        self.__model = model
         return llm
 
     def get_model(self):
