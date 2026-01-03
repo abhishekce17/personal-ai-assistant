@@ -214,7 +214,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     enable_memory=True,
                     memory_instance=redis_saver,
                     llm=socket_llm.llm,
-                    tools_list=[],
+                    tools_list=tools,
                 )
                 socket_agent.agent_creator()
 

@@ -1,5 +1,6 @@
-from app.core.llm_models import OpenRouter_Agents, Ollama_LLM, Cohere_Agents
+from app.core.llm_models import OpenRouter_Agents, Ollama_LLM, Cohere_Agents, Groq_Cloud
 from app.agents.open_router_agents import Agents as OpenRouterAgent
+from app.agents.groq_cloud_agent import Agents as GroqAgent
 from app.agents.cohere_agent import Agents as CohereAgent
 from app.agents.local_ollama_llm_agents import Agents
 from dotenv import load_dotenv
@@ -101,6 +102,8 @@ class SocketAgentLLM:
             # only for local testing while development with local llm
             elif model_name in Ollama_LLM._value2member_map_:
                 agent_llm = Agents()
+            elif model_name in Groq_Cloud._value2member_map_:
+                agent_llm = GroqAgent()
             else:
                 raise ValueError(f"Unsupported model: {model_name}")
 
