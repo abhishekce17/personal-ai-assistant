@@ -214,7 +214,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     enable_memory=True,
                     memory_instance=redis_saver,
                     llm=socket_llm.llm,
-                    tools_list=tools,
+                    tools_list=[],
                 )
                 socket_agent.agent_creator()
 
@@ -331,8 +331,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_text(f"❌ Error: {str(e)}")
 
             finally:
+                if thread_id:
+                     logger.info(f"🧹 Clearing Redis memory for thread {thread_id}...")
+                     await RedisCheckpoint.delete_thread_memory(str(thread_id))
+
                 if RedisCheckpoint._redis_saver:
-                    RedisCheckpoint.close_connection()
+                    await RedisCheckpoint.close_connection()
                 logger.debug(f"[DB] Session closed for WebSocket user: {id}")
 
         except HTTPException as e:
