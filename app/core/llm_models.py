@@ -20,5 +20,7 @@ class Ollama_LLM(str, Enum):
     LLAMA3_1 = "llama3.1:8b"
 
 class Groq_Cloud(str, Enum):
-    LLAMA3_3_70B_VERSATILE = "llama-3.3-70b-versatile"
+    LLAMA3_3_70B_VERSATILE = "llama-3.3-70b-versatile",
+    OPENAI_GPT_OSS_120B = "openai/gpt-oss-120b",
+    QWEN3_32B = "qwen/qwen3-32b"
 

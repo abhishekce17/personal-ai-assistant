@@ -115,9 +115,18 @@ class FeatureFlagCreate(BaseModel):
     revision_id: Optional[int]
 
 
+
 class FeatureFlagRetrieve(BaseModel):
     reference_key: str
     revision_id: int
+
+
+class UserChatSessionRetrieve(BaseModel):
+    id: str
+    thread_id: str
+    topic: Optional[str]
+    updated_at: datetime
+
 
 
 # Database related models
