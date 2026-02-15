@@ -1,26 +1,70 @@
 from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.callbacks.manager import CallbackManager
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
+from app.agents.cohere_agent import Agents as CohereAgent
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 import multiprocessing
-import traceback
 import asyncio
 import logging
-import redis
 import queue
-from langchain_core.callbacks.manager import CallbackManager
+import json
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-num_cores = multiprocessing.cpu_count()  # Should be 12 for your CPU
-max_workers = num_cores * 6  # 72 threads, safe for mixed I/O and CPU
-
+num_cores = multiprocessing.cpu_count()
+max_workers = num_cores * 6
 shared_executor = ThreadPoolExecutor(max_workers=max_workers)
 
 
+# ── Title Generation (Global Cohere LLM) ──────────────────────────────────────
+
+_title_llm = None
+
+title_prompt = ChatPromptTemplate.from_template("""
+Generate a short descriptive title (3-6 words) for this conversation.
+Reply with ONLY a JSON object in this exact format, nothing else:
+{{"title": "Your Short Title Here"}}
+
+Conversation:
+{conversation}
+""")
+
+
+def _get_title_llm():
+    """Lazy-load a dedicated Cohere LLM for title generation (singleton)."""
+    global _title_llm
+    if _title_llm is None:
+        _title_llm = CohereAgent().llm_setup(model="command-a-03-2025")
+        logger.info("✅ Title generation LLM initialized (command-a-03-2025)")
+    return _title_llm
+
+
+def _extract_title(text: str) -> str | None:
+    """Extract title from LLM response, handling markdown code blocks and raw JSON."""
+    # Strip markdown code fences if present
+    cleaned = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`")
+    parsed = json.loads(cleaned)
+    return parsed.get("title")
+
+
+async def generate_title(conversation: str) -> str | None:
+    """Generate a short topic title from the first conversation exchange.
+    Returns None on failure — never disrupts the main chat flow."""
+    try:
+        formatted = title_prompt.format(conversation=conversation)
+        response = await _get_title_llm().ainvoke(formatted)
+        title = _extract_title(response.content)
+        logger.info(f"🏷️  Generated title: {title}")
+        return title
+    except Exception as e:
+        logger.error(f"❌ Title generation failed: {e}")
+        return None
+        
 class StreamingCallbackHandler(BaseCallbackHandler):
     """Custom callback handler for capturing streaming tokens"""
 

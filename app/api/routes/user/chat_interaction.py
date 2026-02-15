@@ -2,7 +2,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPException
 from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy import func, select
-from utils.agent_creator import AgentCreator
+from utils.agent_creator import AgentCreator, generate_title
 from db.models import Model, User, PlanModel, FederatedIdentity, Tool
 from app.core.security import verify_jwt_token, get_tool_access_token
 from app.core.config import RedisCheckpoint
@@ -219,6 +219,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 socket_agent.agent_creator()
 
                 # --- Hydration Logic (Restore History from SQL to Redis) ---
+                is_new_thread = False
                 try:
                     if thread_id:
                         history_data = await ChatHistoryService.get_session_history(id, str(thread_id))
@@ -247,8 +248,11 @@ async def websocket_endpoint(websocket: WebSocket):
                                 logger.info("⏭️  Redis already has messages, skipping hydration.")
                     else:
                         thread_id = uuid.uuid4()
+                        is_new_thread = True
                 except Exception as e:
                     logger.error(f"Error loading previous session for user {id}: {e}")
+
+                is_first_message = True
 
                 # Main chat loop with improved streaming
                 while True:
@@ -313,15 +317,25 @@ async def websocket_endpoint(websocket: WebSocket):
 
                             # --- Background Save (Fire-and-Forget) ---
                             if full_response:
-                                asyncio.create_task(
-                                    ChatHistoryService.save_interaction_background(
+                                should_generate_title = is_new_thread and is_first_message
+                                if should_generate_title:
+                                    is_first_message = False
+
+                                async def _save_with_title():
+                                    topic = None
+                                    if should_generate_title:
+                                        topic = await generate_title(
+                                            f"User: {data}\nAssistant: {full_response}"
+                                        )
+                                    await ChatHistoryService.save_interaction_background(
                                         user_id=id,
                                         thread_id=str(thread_id),
                                         user_message=data,
                                         ai_response=full_response,
-                                        topic=None # TODO: Generate topic in another background task
+                                        topic=topic,
                                     )
-                                )
+
+                                asyncio.create_task(_save_with_title())
 
                     except WebSocketDisconnect:
                         logger.info(f"🔌 Client {id} disconnected")
@@ -335,8 +349,6 @@ async def websocket_endpoint(websocket: WebSocket):
                      logger.info(f"🧹 Clearing Redis memory for thread {thread_id}...")
                      await RedisCheckpoint.delete_thread_memory(str(thread_id))
 
-                if RedisCheckpoint._redis_saver:
-                    await RedisCheckpoint.close_connection()
                 logger.debug(f"[DB] Session closed for WebSocket user: {id}")
 
         except HTTPException as e:
@@ -359,18 +371,17 @@ async def websocket_endpoint(websocket: WebSocket):
             if thread_id:
                 await RedisCheckpoint.delete_thread_memory(str(thread_id))
 
-            if RedisCheckpoint._redis_saver:
-                # We don't necessarily close the global connection pool here, 
-                # but if close_connection is called, it should be awaited.
-                # Usually we keep connection open for other users.
-                # RedisCheckpoint.close_connection() is global shutdown.
-                pass
-            logger.info(f"🧹 Cleaning up Redis connection for disconnected user: {id}")
+            logger.info(f"🧹 Cleaning up LLM agent for disconnected user: {id}")
             UserAgentManager.remove_user_llm(id)
             remaining_connections = UserAgentManager.get_active_connections_count()
             logger.info(
-                f"📊 Remaining active Redis connections: {remaining_connections}"
+                f"📊 Remaining active connections: {remaining_connections}"
             )
+
+            # 2. Only close the shared Redis pool when the last user disconnects
+            if remaining_connections == 0 and RedisCheckpoint._redis_saver:
+                logger.info("🔻 No active users left — closing shared Redis connection pool")
+                await RedisCheckpoint.close_connection()
 
 
 @router.get("/health/redis-connections")

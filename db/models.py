@@ -11,13 +11,19 @@ from sqlalchemy import (
     Index
 )
 from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime, timezone
 from sqlalchemy.orm import relationship
 from typing import Optional
 import uuid
 
 from utils.types import ArtifactFormat, IdentityScope
+
+class StructuredResponse(BaseModel):
+    topic_name: Optional[str] = Field(
+        None, description="A 3-5 word name for the conversation. Provide ONLY on the first message."
+    )
+    content: str = Field(description="The actual response to the user's query.")
 
 
 # pydentic models for type safety
