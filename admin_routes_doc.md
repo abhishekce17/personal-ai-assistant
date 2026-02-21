@@ -5,86 +5,86 @@ The base path for all admin routes is `/admin`.
 
 ## 1. Authentication (`authentication.py`) - `/admin/auth`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/auth/login` | Admin login. Returns an access token. | **Body**: `{"email": str, "password": str}` | `{"message": str, "accessToken": str}` |
-| `POST` | `/admin/auth/register` | Register a new admin. | **Body**: `{"name": str, "email": str, "password": str, "role_id": str}` | `{"message": str, "token": str}` |
+| Method | Path                   | Description                           | Payload Data (Body/Query)                                                | Return Schema                          |
+| :----- | :--------------------- | :------------------------------------ | :----------------------------------------------------------------------- | :------------------------------------- |
+| `POST` | `/admin/auth/login`    | Admin login. Returns an access token. | **Body**: `{"email": str, "password": str}`                              | `{"message": str, "accessToken": str}` |
+| `POST` | `/admin/auth/register` | Register a new admin.                 | **Body**: `{"name": str, "email": str, "password": str, "role_id": str}` | `{"message": str, "token": str}`       |
 
 ## 2. Plan & Model/Tool Mapping (`model_feature_tools_plan_mapping.py`) - `/admin/model-feature-tools-plan-mapping`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/model-feature-tools-plan-mapping/plan-model` | Map a model to a plan. | **Body**: `{"plan_id": str, "model_id": str}` | `{"message": str, "mapping_id": str}` |
-| `GET` | `/admin/model-feature-tools-plan-mapping/plan-model` | List all Plan-Model mappings. | None | `{"count": int, "mappings": [{"mapping_id": str, "plan_id": str, "plan_name": str, "model_id": str, "model_name": str, "created_at": datetime, "updated_at": datetime, "is_active": bool}, ...]}` |
-| `DELETE` | `/admin/model-feature-tools-plan-mapping/plan-model/{mapping_id}` | Delete a Plan-Model mapping by ID. | None | `{"message": str, "mapping_id": str}` |
-| `PATCH` | `/admin/model-feature-tools-plan-mapping/plan-model/{mapping_id}` | Activate or Deactivate a Plan-Model mapping by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
-| `POST` | `/admin/model-feature-tools-plan-mapping/plan-tool` | Map a tool to a plan. | **Body**: `{"plan_id": str, "tool_id": str}` | `{"message": str, "mapping_id": str}` |
-| `GET` | `/admin/model-feature-tools-plan-mapping/plan-tool` | List all Plan-Tool mappings. | None | `{"count": int, "mappings": [{"mapping_id": str, "plan_id": str, "plan_name": str, "tool_id": str, "tool_name": str, "created_at": datetime, "updated_at": datetime, "is_active": bool}, ...]}` |
-| `DELETE` | `/admin/model-feature-tools-plan-mapping/plan-tool/{mapping_id}` | Delete a Plan-Tool mapping by ID. | None | `{"message": str, "mapping_id": str}` |
-| `PATCH` | `/admin/model-feature-tools-plan-mapping/plan-tool/{mapping_id}` | Activate or Deactivate a Plan-Tool mapping by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
+| Method   | Path                                                              | Description                                        | Payload Data (Body/Query)                     | Return Schema                                                                                                                                                                                                      |
+| :------- | :---------------------------------------------------------------- | :------------------------------------------------- | :-------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/model-feature-tools-plan-mapping/plan-model`              | Map a model to a plan.                             | **Body**: `{"plan_id": str, "model_id": str}` | `{"message": str, "mapping_id": str, "success": bool}`                                                                                                                                                             |
+| `GET`    | `/admin/model-feature-tools-plan-mapping/plan-model`              | List all Plan-Model mappings.                      | None                                          | `{"success": bool, "count": int, "mappings": [{"mapping_id": str, "plan_id": str, "plan_name": str, "model_id": str, "model_name": str, "created_at": datetime, "updated_at": datetime, "is_active": bool}, ...]}` |
+| `DELETE` | `/admin/model-feature-tools-plan-mapping/plan-model/{mapping_id}` | Delete a Plan-Model mapping by ID.                 | None                                          | `{"message": str, "mapping_id": str, "success": bool}`                                                                                                                                                             |
+| `PATCH`  | `/admin/model-feature-tools-plan-mapping/plan-model/{mapping_id}` | Activate or Deactivate a Plan-Model mapping by ID. | **Query**: `is_active: bool`                  | `{"success": bool, "data": null, "message": str}`                                                                                                                                                                  |
+| `POST`   | `/admin/model-feature-tools-plan-mapping/plan-tool`               | Map a tool to a plan.                              | **Body**: `{"plan_id": str, "tool_id": str}`  | `{"success": bool, "mapping_id": str, "message": str}`                                                                                                                                                             |
+| `GET`    | `/admin/model-feature-tools-plan-mapping/plan-tool`               | List all Plan-Tool mappings.                       | None                                          | `{"success": bool, "count": int, "mappings": [{"mapping_id": str, "plan_id": str, "plan_name": str, "tool_id": str, "tool_name": str, "created_at": datetime, "updated_at": datetime, "is_active": bool}, ...]}`   |
+| `DELETE` | `/admin/model-feature-tools-plan-mapping/plan-tool/{mapping_id}`  | Delete a Plan-Tool mapping by ID.                  | None                                          | `{"message": str, "mapping_id": str, "success": bool}`                                                                                                                                                             |
+| `PATCH`  | `/admin/model-feature-tools-plan-mapping/plan-tool/{mapping_id}`  | Activate or Deactivate a Plan-Tool mapping by ID.  | **Query**: `is_active: bool`                  | `{"success": bool, "data": null, "message": str}`                                                                                                                                                                  |
 
 ## 3. Model Management (`model_management.py`) - `/admin/model`
 
-*Full Model Object*: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count`, `model_image`, `is_default`
+_Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count`, `model_image`, `is_default`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/model/create` | Create a new AI model. | **Body**: `{"model_name": str, "model_description": str, "model_provider": str, "tool_support": bool (opt), "model_image": str (opt), "is_default": bool (opt)}` | `{"message": str, "model": {"id": str, "name": str}}` |
-| `PUT` | `/admin/model/update/{model_id}` | Update an existing AI model. | **Body**: `{"model_name": str (opt), "model_description": str (opt), ...}` (Same fields as Create, all optional) | `{"message": str, "model": {"id": str, "name": str}}` |
-| `GET` | `/admin/model/list` | List all AI models. | None | `[ModelObject, ...]` |
-| `DELETE` | `/admin/model/delete/{model_id}` | Delete an AI model. | None | `{"message": str}` |
-| `PATCH` | `/admin/model/activate-deactivate/{model_id}` | Activate or Deactivate a model by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
+| Method   | Path                                          | Description                           | Payload Data (Body/Query)                                                                                                                                        | Return Schema                                                          |
+| :------- | :-------------------------------------------- | :------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
+| `POST`   | `/admin/model/create`                         | Create a new AI model.                | **Body**: `{"model_name": str, "model_description": str, "model_provider": str, "tool_support": bool (opt), "model_image": str (opt), "is_default": bool (opt)}` | `{"success": bool, "message": str, "model": {"id": str, "name": str}}` |
+| `PUT`    | `/admin/model/update/{model_id}`              | Update an existing AI model.          | **Body**: `{"model_name": str (opt), "model_description": str (opt), ...}` (Same fields as Create, all optional)                                                 | `{"success": bool, "message": str, "model": {"id": str, "name": str}}` |
+| `GET`    | `/admin/model/list`                           | List all AI models.                   | None                                                                                                                                                             | `{"success": bool, "data": [ModelObject, ...]}`                        |
+| `DELETE` | `/admin/model/delete/{model_id}`              | Delete an AI model.                   | None                                                                                                                                                             | `{"success": bool, "data": null, "message": str}`                      |
+| `PATCH`  | `/admin/model/activate-deactivate/{model_id}` | Activate or Deactivate a model by ID. | **Query**: `is_active: bool`                                                                                                                                     | `{"success": bool, "data": null, "message": str}`                      |
 
 ## 4. Plan Management (`plan_management.py`) - `/admin/plan`
 
-*Full Plan Object*: `id`, `created_at`, `updated_at`, `is_active`, `name`, `slug`, `subscription_count`, `price`, `description`, `is_default`
+_Full Plan Object_: `id`, `created_at`, `updated_at`, `is_active`, `name`, `slug`, `subscription_count`, `price`, `description`, `is_default`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/plan/create` | Create a new plan. | **Body**: `{"name": str, "price": int, "description": str (opt), "is_default": bool (opt)}` | `{"message": str, "plan": {"id": str, "name": str}}` |
-| `GET` | `/admin/plan/list` | List all plans. | None | `[PlanObject, ...]` |
-| `DELETE` | `/admin/plan/delete/{plan_id}` | Delete a plan. | None | `{"message": str}` |
-| `PUT` | `/admin/plan/update/{plan_id}` | Update an existing plan. | **Body**: `{"name": str, "price": int, "description": str (opt), "is_default": bool (opt)}` (All optional in practice, though schema is reused) | `{"message": str, "plan": {"id": str, "name": str, "price": int, "description": str}}` |
-| `PATCH` | `/admin/plan/activate-deactivate/{plan_id}` | Activate or Deactivate a plan by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
+| Method   | Path                                        | Description                          | Payload Data (Body/Query)                                                                                                                       | Return Schema                                                                                           |
+| :------- | :------------------------------------------ | :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ |
+| `POST`   | `/admin/plan/create`                        | Create a new plan.                   | **Body**: `{"name": str, "price": int, "description": str (opt), "is_default": bool (opt)}`                                                     | `{"message": str, "plan": {"id": str, "name": str}, "success": bool}`                                   |
+| `GET`    | `/admin/plan/list`                          | List all plans.                      | None                                                                                                                                            | `{"success": bool, "data": [PlanObject, ...]}`                                                          |
+| `DELETE` | `/admin/plan/delete/{plan_id}`              | Delete a plan.                       | None                                                                                                                                            | `{"success": bool, "data": null, "message": str}`                                                       |
+| `PUT`    | `/admin/plan/update/{plan_id}`              | Update an existing plan.             | **Body**: `{"name": str, "price": int, "description": str (opt), "is_default": bool (opt)}` (All optional in practice, though schema is reused) | `{"message": str, "plan": {"id": str, "name": str, "price": int, "description": str}, "success": bool}` |
+| `PATCH`  | `/admin/plan/activate-deactivate/{plan_id}` | Activate or Deactivate a plan by ID. | **Query**: `is_active: bool`                                                                                                                    | `{"success": bool, "data": null, "message": str}`                                                       |
 
 ## 5. Static Data Management (`staticdata_management.py`) - `/admin/staticdata-management`
 
-*Full SystemArtifact Object*: `id`, `created_at`, `updated_at`, `is_active`, `reference_key`, `revision_id`, `artifact_payload`, `media_type`, `description`
+_Full SystemArtifact Object_: `id`, `created_at`, `updated_at`, `is_active`, `reference_key`, `revision_id`, `artifact_payload`, `media_type`, `description`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/staticdata-management/create` | Create a new static artifact. | **Body**: `{"reference_key": str, "artifact_payload": str, "media_type": str, "revision_id": int (opt), "description": str (opt)}` | `{"message": str, "static_data": {"id": str, "reference_key": str}}` |
-| `GET` | `/admin/staticdata-management/list` | List all static artifacts. | None | `[SystemArtifactObject, ...]` |
-| `DELETE` | `/admin/staticdata-management/delete/{artifact_id}` | Delete a static artifact. | None | `{"message": str}` |
-| `PUT` | `/admin/staticdata-management/update/{artifact_id}` | Update an existing static artifact. | **Body**: `{"reference_key": str (opt), ...}` (Create fields, optional) | `{"message": str, "static_data": {"id": str, "reference_key": str, "revision_id": int}}` |
-| `PATCH` | `/admin/staticdata-management/activate-deactivate/{artifact_id}` | Activate or Deactivate a static artifact. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
+| Method   | Path                                                             | Description                               | Payload Data (Body/Query)                                                                                                          | Return Schema                                                                                             |
+| :------- | :--------------------------------------------------------------- | :---------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/staticdata-management/create`                            | Create a new static artifact.             | **Body**: `{"reference_key": str, "artifact_payload": str, "media_type": str, "revision_id": int (opt), "description": str (opt)}` | `{"success": bool, "message": str, "static_data": {"id": str, "reference_key": str}}`                     |
+| `GET`    | `/admin/staticdata-management/list`                              | List all static artifacts.                | None                                                                                                                               | `{"success": bool, "data": [SystemArtifactObject, ...]}`                                                  |
+| `DELETE` | `/admin/staticdata-management/delete/{artifact_id}`              | Delete a static artifact.                 | None                                                                                                                               | `{"success": bool, "data": null, "message": str}`                                                         |
+| `PUT`    | `/admin/staticdata-management/update/{artifact_id}`              | Update an existing static artifact.       | **Body**: `{"reference_key": str (opt), ...}` (Create fields, optional)                                                            | `{"success": bool, "static_data": {"id": str, "reference_key": str, "revision_id": int}, "message": str}` |
+| `PATCH`  | `/admin/staticdata-management/activate-deactivate/{artifact_id}` | Activate or Deactivate a static artifact. | **Query**: `is_active: bool`                                                                                                       | `{"success": bool, "data": null, "message": str}`                                                         |
 
 ## 6. Tool Management (`tool_management.py`) - `/admin/tool-management`
 
-*Full Tool Object*: `id`, `created_at`, `updated_at`, `is_active`, `tool_name`, `tool_description`, `tool_provider`, `user_count`, `tool_image`
+_Full Tool Object_: `id`, `created_at`, `updated_at`, `is_active`, `tool_name`, `tool_description`, `tool_provider`, `user_count`, `tool_image`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/tool-management/create` | Create a new tool. | **Body**: `{"name": str, "description": str (opt), "provider": str (opt), "image": str (opt)}` | `{"message": str, "tool": {"id": str, "name": str}}` |
-| `GET` | `/admin/tool-management/list` | List all tools. | None | `[ToolObject, ...]` |
-| `DELETE` | `/admin/tool-management/delete/{tool_id}` | Delete a tool. | None | `{"message": str}` |
-| `PUT` | `/admin/tool-management/update/{tool_id}` | Update an existing tool. | **Body**: `{"name": str, ...}` (Same as Create, reused) | `{"message": str, "tool": {"id": str, "name": str, "provider": str, "description": str, "image": str}}` |
-| `PATCH` | `/admin/tool-management/activate-deactivate/{tool_id}` | Activate or Deactivate a tool by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
+| Method   | Path                                                   | Description                          | Payload Data (Body/Query)                                                                      | Return Schema                                                                                                            |
+| :------- | :----------------------------------------------------- | :----------------------------------- | :--------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/tool-management/create`                        | Create a new tool.                   | **Body**: `{"name": str, "description": str (opt), "provider": str (opt), "image": str (opt)}` | `{"success": bool, "tool": {"id": str, "name": str}, "message": str}`                                                    |
+| `GET`    | `/admin/tool-management/list`                          | List all tools.                      | None                                                                                           | `{"success": bool, "data": [ToolObject, ...]}`                                                                           |
+| `DELETE` | `/admin/tool-management/delete/{tool_id}`              | Delete a tool.                       | None                                                                                           | `{"success": bool, "data": null, "message": str}`                                                                        |
+| `PUT`    | `/admin/tool-management/update/{tool_id}`              | Update an existing tool.             | **Body**: `{"name": str, ...}` (Same as Create, reused)                                        | `{"success": bool, "tool": {"id": str, "name": str, "provider": str, "description": str, "image": str}, "message": str}` |
+| `PATCH`  | `/admin/tool-management/activate-deactivate/{tool_id}` | Activate or Deactivate a tool by ID. | **Query**: `is_active: bool`                                                                   | `{"success": bool, "data": null, "message": str}`                                                                        |
 
 ## 7. User Management (`user_management.py`) - `/admin/user-management`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/admin/user-management/users` | List all users. | None | `[{"avatar": str, "name": str, "email": str, "id": str, "created_at": datetime, "current_plan_id": str, "is_active": bool, "plan_name": str, "slug": str}, ...]` |
-| `POST` | `/admin/user-management/users/{id}` | Get user details by ID. | None | `{"user_*": UserField, "plan_*": PlanField}` (Combined User and Plan fields) |
-| `PATCH` | `/admin/user-management/users/{id}/activate` | Activate or Deactivate a user by ID. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
-| `POST` | `/admin/user-management/users/{id}/plan/{plan_id}` | Change user plan by ID. | None | `{"success": bool, "message": str}` |
+| Method  | Path                                               | Description                          | Payload Data (Body/Query)    | Return Schema                                                                                                                                                                                |
+| :------ | :------------------------------------------------- | :----------------------------------- | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`   | `/admin/user-management/users`                     | List all users.                      | None                         | `{"success": bool, "users": [{"avatar": str, "name": str, "email": str, "id": str, "created_at": datetime, "current_plan_id": str, "is_active": bool, "plan_name": str, "slug": str}, ...]}` |
+| `POST`  | `/admin/user-management/users/{id}`                | Get user details by ID.              | None                         | `{"success": bool, "user": {"user_*": UserField, "plan_*": PlanField}}` (Combined User and Plan fields)                                                                                      |
+| `PATCH` | `/admin/user-management/users/{id}/activate`       | Activate or Deactivate a user by ID. | **Query**: `is_active: bool` | `{"success": bool, "data": null, "message": str}`                                                                                                                                            |
+| `POST`  | `/admin/user-management/users/{id}/plan/{plan_id}` | Change user plan by ID.              | None                         | `{"success": bool, "data": null, "message": str}`                                                                                                                                            |
 
 ## 8. Feature Flag Management (`feature_flag_management.py`) - `/admin/feature-flag-management`
 
-| Method | Path | Description | Payload Data (Body/Query) | Return Schema |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/admin/feature-flag-management/create` | Create a new feature flag. | **Body**: `{"reference_key": str, "description": str (opt), "revision_id": int (opt)}` | `{"message": str, "feature_flag": {"id": str, "reference_key": str}}` |
-| `PATCH` | `/admin/feature-flag-management/toggle/{feature_id}` | Toggle feature flag status. | **Query**: `is_active: bool` | `{"success": bool, "message": str}` |
-| `DELETE` | `/admin/feature-flag-management/delete/{feature_id}` | Delete a feature flag. | None | `{"message": str}` |
-| `GET` | `/admin/feature-flag-management/list` | List all feature flags. | None | `[FeatureFlagObject, ...]` |
+| Method   | Path                                                 | Description                 | Payload Data (Body/Query)                                                              | Return Schema                                                                          |
+| :------- | :--------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- |
+| `POST`   | `/admin/feature-flag-management/create`              | Create a new feature flag.  | **Body**: `{"reference_key": str, "description": str (opt), "revision_id": int (opt)}` | `{"success": bool, "feature_flag": {"id": str, "reference_key": str}, "message": str}` |
+| `PATCH`  | `/admin/feature-flag-management/toggle/{feature_id}` | Toggle feature flag status. | **Query**: `is_active: bool`                                                           | `{"success": bool, "data": null, "message": str}`                                      |
+| `DELETE` | `/admin/feature-flag-management/delete/{feature_id}` | Delete a feature flag.      | None                                                                                   | `{"success": bool, "data": null, "message": str}`                                      |
+| `GET`    | `/admin/feature-flag-management/list`                | List all feature flags.     | None                                                                                   | `{"success": bool, "data": [FeatureFlagObject, ...]}`                                  |

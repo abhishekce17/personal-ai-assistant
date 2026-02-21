@@ -9,7 +9,7 @@ from app.core.config import RedisCheckpoint
 router = APIRouter()
 
 
-@router.get("/list", response_model=List[UserChatSessionRetrieve])
+@router.get("/list")
 async def get_user_chat_sessions(
     request: Request,
     user: User = Depends(get_current_user),
