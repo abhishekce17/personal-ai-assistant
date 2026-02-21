@@ -46,6 +46,7 @@ async def create_model(
     await db.refresh(model)
 
     return {
+        "success": True,
         "message": "Model created",
         "model": {"id": model.id, "name": model.model_name},
     }
@@ -85,6 +86,7 @@ async def update_model(
     await db.refresh(model)
 
     return {
+        "success": True,
         "message": "Model updated",
         "model": {"id": model.id, "name": model.model_name},
     }
@@ -98,7 +100,7 @@ async def list_models(
     db: AsyncSession = request.state.db
     result = await db.execute(select(Model))
     models = result.scalars().all()
-    return models
+    return {"success": True, "data": models}
 
 
 @router.delete("/delete/{model_id}", summary="Delete a model")
@@ -116,7 +118,7 @@ async def delete_model(
 
     await db.delete(model)
     await db.commit()
-    return {"message": f"Model '{model.model_name}' deleted"}
+    return {"success": True, "data": None, "message": f"Model '{model.model_name}' deleted"}
 
 @router.patch("/activate-deactivate/{model_id}", summary="Activate or Deactivate a model by ID")
 async def activate_deactivate_model(

@@ -50,11 +50,12 @@ async def create_feature_flag(
         await db.commit()
         await db.refresh(new_feature_flag)
         return {
-            "message": "Feature flag created",
+            "success": True,
             "feature_flag": {
                 "id": new_feature_flag.id,
                 "reference_key": new_feature_flag.reference_key,
             },
+            "message": "Feature flag created",
         }
 
 
@@ -87,7 +88,7 @@ async def delete_feature_flag(
 
     await db.delete(feature_flag)
     await db.commit()
-    return {"message": "Feature flag deleted"}
+    return {"success": True, "data": None, "message": "Feature flag deleted"}
 
 
 @router.get("/list", summary="List all feature flags")
@@ -98,4 +99,4 @@ async def list_feature_flags(
     db: AsyncSession = request.state.db
     result = await db.execute(select(FeatureFlag).order_by(FeatureFlag.reference_key.asc()))
     feature_flags = result.scalars().all()
-    return feature_flags
+    return {"success": True, "data": feature_flags}

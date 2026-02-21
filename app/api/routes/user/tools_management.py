@@ -116,7 +116,7 @@ async def tool_auth_callback(
     
     await db.commit()
 
-    return {"status": "success", "message": "Repository access linked successfully."}
+    return {"success": True, "data": None, "message": "Repository access linked successfully."}
 
 
 @router.delete("/uninstall_app/{installation_id}")
@@ -170,7 +170,7 @@ async def uninstall_app(
 
             await db.delete(identity_link)
             await db.commit()
-            return {"message": "App uninstalled successfully"}
+            return {"success": True, "data": None, "message": "App uninstalled successfully"}
         
         elif response.status_code == 404:
             # If not found on GitHub, remove from our DB as well to sync state
@@ -183,7 +183,7 @@ async def uninstall_app(
 
             await db.delete(identity_link)
             await db.commit()
-            return {"message": "Installation already removed or not found"}
+            return {"success": True, "data": None, "message": "Installation already removed or not found"}
             
         else:
             raise HTTPException(

@@ -37,7 +37,7 @@ async def list_users(
 
     result = await db.execute(select(User.avatar, User.name, User.email, User.id, User.created_at, User.current_plan_id, User.is_active, Plan.name.label("plan_name"), Plan.slug).join(Plan, User.current_plan_id == Plan.id))
     users = result.mappings().all()
-    return users;
+    return {"success": True, "users": users}
 
 
 @router.post("/users/{id}", summary="Get user details by ID")
@@ -61,7 +61,7 @@ async def get_user_details(
     user = result.mappings().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return {"success": True, "user": user}
 
 @router.patch("/users/{id}/activate", summary="Activate or Deactivate a user by ID")
 async def activate_user(
@@ -103,4 +103,4 @@ async def change_user_plan(
     user.current_plan_id = plan_id
     await db.commit()
 
-    return {"success": True, "message": "User plan changed successfully"}
+    return {"success": True, "data": None, "message": "User plan changed successfully"}

@@ -51,7 +51,7 @@ async def create_static_artifact(
         db.add(new_static_data)
         await db.commit()
         await db.refresh(new_static_data)
-        return {"message": "Static data created", "static_data": {"id": new_static_data.id, "reference_key": new_static_data.reference_key}}
+        return {"success": True, "message": "Static data created", "static_data": {"id": new_static_data.id, "reference_key": new_static_data.reference_key}}
 
 
 @router.get("/list", summary="List all static artifacts")
@@ -62,7 +62,7 @@ async def list_static_artifacts(
     db: AsyncSession = request.state.db
     result = await db.execute(select(SystemArtifact).order_by(SystemArtifact.reference_key.asc()))
     artifacts = result.scalars().all()
-    return artifacts
+    return {"success": True, "data": artifacts}
 
 
 @router.delete("/delete/{artifact_id}", summary="Delete a static artifact")
@@ -80,7 +80,7 @@ async def delete_static_artifact(
 
     await db.delete(artifact)
     await db.commit()
-    return {"message": "Static artifact deleted"}
+    return {"success": True, "data": None, "message": "Static artifact deleted"}
 
 from sqlalchemy.exc import IntegrityError
 
@@ -119,12 +119,13 @@ async def update_static_artifact(
         )
 
     return {
-        "message": "Static artifact updated",
+        "success": True,
         "static_data": {
             "id": artifact.id,
             "reference_key": artifact.reference_key,
             "revision_id": artifact.revision_id,
         },
+        "message": "Static artifact updated",
     }
 @router.patch("/activate-deactivate/{artifact_id}", summary="Activate or deactivate a static artifact")
 async def activate_deactivate_static_artifact(

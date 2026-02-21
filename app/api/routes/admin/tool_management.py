@@ -46,7 +46,7 @@ async def create_tool(
         db.add(tool)
         await db.commit()
         await db.refresh(tool)
-        return {"message": "Tool created", "tool": {"id": tool.id, "name": tool.tool_name}}
+        return {"success": True, "tool": {"id": tool.id, "name": tool.tool_name}, "message": "Tool created"}
     elif not tool_module:
         raise HTTPException(status_code=404, detail="Tool implementation not found")
 
@@ -59,7 +59,7 @@ async def list_tools(
     db: AsyncSession = request.state.db
     result = await db.execute(select(Tool))
     tools = result.scalars().all()
-    return tools
+    return {"success": True, "data": tools}
 
 
 @router.delete("/delete/{tool_id}", summary="Delete a tool")
@@ -77,7 +77,7 @@ async def delete_tool(
 
     await db.delete(tool)
     await db.commit()
-    return {"message": "Tool deleted"}
+    return {"success": True, "data": None, "message": "Tool deleted"}
 
 @router.put("/update/{tool_id}", summary="Update an existing tool")
 async def update_tool(
@@ -113,7 +113,7 @@ async def update_tool(
         raise HTTPException(status_code=409, detail="Tool name already exists")
 
     return {
-        "message": "Tool updated",
+        "success": True,
         "tool": {
             "id": tool.id,
             "name": tool.tool_name,
@@ -121,6 +121,7 @@ async def update_tool(
             "description": tool.tool_description,
             "image": tool.tool_image,
         },
+        "message": "Tool updated",
     }
 
 @router.patch("/activate-deactivate/{tool_id}", summary="Activate or Deactivate a tool by ID")

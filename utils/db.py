@@ -40,7 +40,7 @@ async def _toggle_activation_row(db : AsyncSession, Model, id: str, activate: bo
 
     row.is_active = activate
     await db.commit()
-    return {"success": True, "message": f"{Model.__name__} {'activated' if activate else 'deactivated'} successfully"}
+    return {"success": True, "data": None, "message": f"{Model.__name__} {'activated' if activate else 'deactivated'} successfully"}
 
 async def activate_row(db : AsyncSession, Model, id: str):
     return await _toggle_activation_row(db, Model, id, True)

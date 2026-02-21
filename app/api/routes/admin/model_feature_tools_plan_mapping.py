@@ -51,7 +51,7 @@ async def create_plan_model_mapping(
     await db.commit()
     await db.refresh(mapping)
 
-    return {"message": "Model successfully mapped to plan", "mapping_id": mapping.id}
+    return {"message": "Model successfully mapped to plan", "mapping_id": mapping.id, "success": True}
 
 
 @router.get("/plan-model", summary="List all Plan-Model mappings")
@@ -77,7 +77,7 @@ async def list_all_plan_model_mappings(
     result = await db.execute(stmt)
     results = result.mappings().all()
 
-    return {"count": len(results), "mappings": results}
+    return {"success": True, "count": len(results), "mappings": results}
 
 
 @router.delete("/plan-model/{mapping_id}", summary="Delete a Plan-Model mapping by ID")
@@ -96,7 +96,7 @@ async def delete_plan_model_mapping(
     await db.delete(mapping)
     await db.commit()
 
-    return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
+    return {"message": "Mapping deleted successfully", "mapping_id": mapping_id, "success": True}
 
 @router.patch("/plan-model/{mapping_id}", summary="Activate or Deactivate a Plan-Model mapping by ID")
 async def activate_deactivate_plan_model_mapping(
@@ -150,7 +150,7 @@ async def create_plan_tool_mapping(
     await db.commit()
     await db.refresh(mapping)
 
-    return {"message": "Tool successfully mapped to plan", "mapping_id": mapping.id}
+    return {"success": True, "mapping_id": mapping.id, "message": "Tool successfully mapped to plan"}
 
 
 @router.get("/plan-tool", summary="List all Plan-Tool mappings")
@@ -176,7 +176,7 @@ async def list_all_plan_tool_mappings(
     result = await db.execute(stmt)
     results = result.mappings().all()
 
-    return {"count": len(results), "mappings": results}
+    return {"success": True, "count": len(results), "mappings": results}
 
 
 @router.delete("/plan-tool/{mapping_id}", summary="Delete a Plan-Tool mapping by ID")
@@ -195,7 +195,7 @@ async def delete_plan_tool_mapping(
     await db.delete(mapping)
     await db.commit()
 
-    return {"message": "Mapping deleted successfully", "mapping_id": mapping_id}
+    return {"message": "Mapping deleted successfully", "mapping_id": mapping_id, "success": True}
 
 @router.patch("/plan-tool/{mapping_id}", summary="Activate or Deactivate a Plan-Tool mapping by ID")
 async def activate_deactivate_plan_tool_mapping(

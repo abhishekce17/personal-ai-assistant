@@ -9,7 +9,7 @@ router = APIRouter()
 
 @router.get("/me")
 async def get_user(user: User = Depends(get_current_user)):
-    return {"user": user}
+    return {"user": user, "success": True}
 
 
 @router.post("/update")
@@ -33,7 +33,7 @@ async def update_user(
 
     await db.commit()
     await db.refresh(user)
-    return {"user": user}
+    return {"success": True, "user": user, "message": "User updated successfully"}
 
 
 @router.put("/password")
@@ -47,7 +47,7 @@ async def update_password(
     verify_password(old_password, user.password)
     user.password = hash_password(new_password)
     await db.commit()
-    return {"message": "password changes successfully"}
+    return {"success": True, "data": None, "message": "Password changed successfully"}
 
 
 @router.delete("/delete", status_code=status.HTTP_204_NO_CONTENT)

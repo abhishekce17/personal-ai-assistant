@@ -83,7 +83,7 @@ app.mount(path="/admin", app=admin, name="Admin")
 @app.get("/health")
 async def health_check():
     """Basic health check endpoint"""
-    return {"status": "healthy", "message": "Server is running"}
+    return {"success": True, "data": {"status": "healthy"}, "message": "Server is running"}
 
 
 if __name__ == "__main__":

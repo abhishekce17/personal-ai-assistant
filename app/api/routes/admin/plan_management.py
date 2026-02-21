@@ -43,7 +43,7 @@ async def create_plan(
     await db.commit()
     await db.refresh(plan)
 
-    return {"message": "Plan created", "plan": {"id": plan.id, "name": plan.name}}
+    return {"message": "Plan created", "plan": {"id": plan.id, "name": plan.name}, "success": True}
 
 
 @router.get("/list", summary="List all plans")
@@ -54,7 +54,7 @@ async def list_plans(
     db: AsyncSession = request.state.db
     result = await db.execute(select(Plan))
     plans = result.scalars().all()
-    return plans
+    return {"success": True, "data": plans}
 
 
 @router.delete("/delete/{plan_id}", summary="Delete a plan")
@@ -72,7 +72,7 @@ async def delete_plan(
 
     await db.delete(plan)
     await db.commit()
-    return {"message": "Plan deleted"}
+    return {"success": True, "data": None, "message": "Plan deleted"}
 
 
 @router.put("/update/{plan_id}", summary="Update an existing plan")
@@ -115,6 +115,7 @@ async def update_plan(
             "price": plan.price,
             "description": plan.description,
         },
+        "success": True,
     }
 
 @router.patch("/activate-deactivate/{plan_id}", summary="Activate or Deactivate a plan by ID")

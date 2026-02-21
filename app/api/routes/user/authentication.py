@@ -39,6 +39,7 @@ async def login(login: Login, request: Request):
     token = create_jwt_token(user.email, user.id)
 
     return {
+            "success": True,
         "message": "Login successful",
         "token": token,
     }
@@ -106,6 +107,7 @@ async def register(register: Register, request: Request):
     token = create_jwt_token(new_user.email, new_user.id)
 
     return {
+        "success": True,
         "message": "User registered successfully",
         "token": token,
     }

@@ -388,6 +388,9 @@ async def websocket_endpoint(websocket: WebSocket):
 async def get_redis_connections_status():
     active_connections = UserAgentManager.get_active_connections_count()
     return {
-        "active_redis_connections": active_connections,
-        "status": ("healthy" if active_connections < 50 else "warning"),
+        "success": True,
+        "data": {
+            "active_redis_connections": active_connections,
+            "status": ("healthy" if active_connections < 50 else "warning"),
+        },
     }

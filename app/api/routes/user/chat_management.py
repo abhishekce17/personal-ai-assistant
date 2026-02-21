@@ -35,7 +35,7 @@ async def get_user_chat_sessions(
     result = await db.execute(query)
     chat_sessions = result.mappings().all()
     
-    return chat_sessions
+    return {"success": True, "data": chat_sessions}
 
 @router.delete("/delete/{thread_id}")
 async def delete_chat_session(
@@ -81,4 +81,4 @@ async def delete_chat_session(
     # This happens after DB commit to ensure data consistency
     await RedisCheckpoint.delete_thread_memory(thread_id)
     
-    return {"success": True, "message": "Chat session deleted successfully"}
+    return {"success": True, "data": None, "message": "Chat session deleted successfully"}
