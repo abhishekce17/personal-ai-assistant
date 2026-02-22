@@ -106,16 +106,21 @@ class UserAgentManager:
 
 @router.websocket("/chat")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
+    # Determine thread_id before accepting so we can send it in headers
+    incoming_thread_id = websocket.headers.get("x-session-thread-id", None)
+    thread_id = incoming_thread_id if incoming_thread_id else str(uuid.uuid4())
+    is_new_thread = not incoming_thread_id
+    
+    # Accept with the thread_id in the response headers
+    await websocket.accept(headers=[(b"x-session-thread-id", str(thread_id).encode())])
+    
     id = None
     socket_agent = None
     db = None
-    thread_id = None
 
     try:
         # Authentication
         token = websocket.headers.get("Authorization", "").replace("Bearer ", "")
-        thread_id = websocket.headers.get("x-session-thread-id", None)
         if not token:
             logger.warning("No token provided")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -192,7 +197,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
                 model = socket_llm.get_model_name()
 
-                await websocket.send_text(f"Connected as {id} using {model}")
+                # await websocket.send_text(f"Connected as {id} using {model}")
                 tools = []
                 try:
                     for tool_entry in enabled_tools:
@@ -219,9 +224,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 socket_agent.agent_creator()
 
                 # --- Hydration Logic (Restore History from SQL to Redis) ---
-                is_new_thread = False
                 try:
-                    if thread_id:
+                    if not is_new_thread and thread_id:
                         history_data = await ChatHistoryService.get_session_history(id, str(thread_id))
                         history_messages = []
                         for h in history_data:
@@ -246,9 +250,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                 logger.info("✅ Hydration Complete")
                             else:
                                 logger.info("⏭️  Redis already has messages, skipping hydration.")
-                    else:
-                        thread_id = uuid.uuid4()
-                        is_new_thread = True
                 except Exception as e:
                     logger.error(f"Error loading previous session for user {id}: {e}")
 
@@ -268,7 +269,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             user_message = data
 
                         # Send typing indicator
-                        await websocket.send_text("Thinking...")
+                        await websocket.send_text(json.dumps({
+                                "event": "reasoning",
+                            }))
 
                         # Stream the response
                         response_started = False
@@ -291,9 +294,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                 logger.error(
                                     f"Streaming error for user {id}: {streaming_error}"
                                 )
-                                await websocket.send_text(
-                                    f"\n❌ Streaming error: {str(streaming_error)}"
-                                )
+                                await websocket.send_text(json.dumps({
+                                    "event": "error",
+                                    "message": str(streaming_error)
+                                }))
                         else:
                             # Fallback to non-streaming response
                             fallback_response = ""
@@ -301,22 +305,28 @@ async def websocket_endpoint(websocket: WebSocket):
                                 fallback_response = await socket_agent.talk_non_stream(
                                     user_message, str(thread_id)
                                 )
-                                await websocket.send_text(
-                                    f"\n{model} (fallback): {fallback_response}"
-                                )
+                                await websocket.send_json({
+                                    "model" : model,
+                                    "thread_id" : str(thread_id),
+                                    "content" : fallback_response
+                                })
                             except Exception as fallback_error:
                                 logger.error(
                                     f"Fallback error for user {id}: {fallback_error}"
                                 )
-                                await websocket.send_text(
-                                    f"\n❌ Error: {str(fallback_error)}"
-                                )
+                                await websocket.send_text(json.dumps({
+                                    "event": "error",
+                                    "message": str(fallback_error)
+                                }))
                             full_response = fallback_response
 
                         # Send end-of-response marker
                         if response_started or (convo_type != ConversationType.STREAM):
-                            if response_started:
-                                await websocket.send_text("\n✅")
+                            await websocket.send_text(json.dumps({
+                                "event": "turn_complete",
+                                "thread_id": str(thread_id),
+                                "status": "success"
+                            }))
                             
                             logger.info(
                                 f"Completed response for {id} ({len(full_response)} chars)"
@@ -334,13 +344,24 @@ async def websocket_endpoint(websocket: WebSocket):
                                         topic = await generate_title(
                                             f"User: {user_message}\nAssistant: {full_response}"
                                         )
-                                    await ChatHistoryService.save_interaction_background(
+
+                                    # Wait for save so we have the ChatSession ID
+                                    session_id = await ChatHistoryService.save_interaction_background(
                                         user_id=id,
                                         thread_id=str(thread_id),
                                         user_message=user_message,
                                         ai_response=full_response,
                                         topic=topic,
                                     )
+
+                                    if topic and session_id:
+                                        # Send topic to frontend along with ChatSession ID
+                                        await websocket.send_json({
+                                            "event": "topic_generated",
+                                            "topic": topic,
+                                            "id": session_id,
+                                            "thread_id": str(thread_id)
+                                        })
 
                                 asyncio.create_task(_save_with_title())
 
@@ -349,7 +370,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         break
                     except Exception as e:
                         logger.error(f"❌ Error processing message for {id}: {e}")
-                        await websocket.send_text(f"❌ Error: {str(e)}")
+                        await websocket.send_text(json.dumps({
+                            "event": "error",
+                            "message": str(e)
+                        }))
 
             finally:
                 if thread_id:

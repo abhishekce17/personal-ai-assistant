@@ -336,6 +336,7 @@ class ChatSession(BaseMixin, Base):
     thread_id = Column(String, unique=True, index=True, nullable=False)
     
     topic = Column(String(255), nullable=True)
+    pinned = Column(DateTime, nullable=True)
     
     interactions = relationship(
         "ChatInteraction", 

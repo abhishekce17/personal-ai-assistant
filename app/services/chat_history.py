@@ -24,10 +24,10 @@ class ChatHistoryService:
     """
 
     @staticmethod
-    async def get_session_history(user_id: str, thread_id: str):
+    async def get_session_history(user_id: str, thread_id: str, limit: int = None, offset: int = 0):
         """
         Async retrieval of chat session history.
-        Sorts by oldest first.
+        Sorts by oldest first. Supports optional limit/offset pagination.
         """
         if not thread_id:
              return []
@@ -44,7 +44,11 @@ class ChatHistoryService:
                         (ChatSession.thread_id == thread_id)
                     )
                     .order_by(ChatInteraction.created_at.asc())
+                    .offset(offset)
                 )
+                if limit is not None:
+                    stmt = stmt.limit(limit)
+
                 result = await db.execute(stmt)
                 interactions = result.scalars().all()
 
@@ -102,6 +106,9 @@ class ChatHistoryService:
                     if topic and session.topic != topic:
                         session.topic = topic
                     
+                    # Touch updated_at so this session floats to the top of the list
+                    session.updated_at = timestamp
+                    
                     new_interaction = ChatInteraction(
                         thread_id=thread_id,  # Links to the session via thread_id
                         content=encrypted_content,
@@ -126,20 +133,24 @@ class ChatHistoryService:
                     db.add(new_interaction)
 
                 await db.commit()
-                logger.info(f"✅ [SQL] Saved Interaction to thread {thread_id}")
-                return timestamp.isoformat()
+                # Refresh session to get the ID if it was newly created
+                await db.refresh(session if session else new_session)
+                session_id = session.id if session else new_session.id
+                
+                logger.info(f"✅ [SQL] Saved Interaction to thread {thread_id} (Session ID: {session_id})")
+                return timestamp.isoformat(), session_id
 
             except IntegrityError:
                 logger.warning(f"⚠️ Race condition detected for thread {thread_id}. Retrying save...")
                 await db.rollback()
-                return await _save_to_sql_async(
+                return await self._save_to_sql_async(
                     user_id, thread_id, user_message, ai_response, topic
                 )
 
             except Exception as e:
                 logger.error(f"❌ [SQL Async Failed]: {e}")
                 await db.rollback()
-                return datetime.now().isoformat()
+                return datetime.now().isoformat(), None
 
     @staticmethod
     async def save_interaction_background(
@@ -154,7 +165,7 @@ class ChatHistoryService:
         """
         logger.info(f"⏳ [Background] Saving interaction for Thread: {thread_id}")
 
-        timestamp = await ChatHistoryService._save_to_sql_async(
+        timestamp, session_id = await ChatHistoryService._save_to_sql_async(
             user_id, thread_id, user_message, ai_response, topic
         )
         
@@ -183,7 +194,6 @@ class ChatHistoryService:
                         }
                     )
                 ]
-                print({"documents" : documents})
                 await vector_store.aadd_documents(documents)
                 logger.info("✅ [Vector] Saved to Qdrant")
             except Exception as e:
@@ -191,3 +201,5 @@ class ChatHistoryService:
         else:
             if os.getenv("QDRANT_URL"):
                  logger.error("⚠️ Failed to get Qdrant store instance.")
+        
+        return session_id
