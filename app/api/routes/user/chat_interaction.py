@@ -260,6 +260,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         data = await websocket.receive_text()
                         logger.info(f"Received message from {id}: {data[:100]}...")
 
+                        # Extract text from JSON if sent as {"message": "..."}
+                        try:
+                            json_data = json.loads(data)
+                            user_message = json_data.get("message", data)
+                        except (json.JSONDecodeError, TypeError):
+                            user_message = data
+
                         # Send typing indicator
                         await websocket.send_text("Thinking...")
 
@@ -270,7 +277,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         if convo_type == ConversationType.STREAM:
                             try:
                                 async for chunk in socket_agent.talk_stream(
-                                    data, thread_id=str(thread_id)
+                                    user_message, thread_id=str(thread_id)
                                 ):
                                     if chunk:
                                         if not response_started:
@@ -292,7 +299,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             fallback_response = ""
                             try:
                                 fallback_response = await socket_agent.talk_non_stream(
-                                    data, str(thread_id)
+                                    user_message, str(thread_id)
                                 )
                                 await websocket.send_text(
                                     f"\n{model} (fallback): {fallback_response}"
@@ -325,12 +332,12 @@ async def websocket_endpoint(websocket: WebSocket):
                                     topic = None
                                     if should_generate_title:
                                         topic = await generate_title(
-                                            f"User: {data}\nAssistant: {full_response}"
+                                            f"User: {user_message}\nAssistant: {full_response}"
                                         )
                                     await ChatHistoryService.save_interaction_background(
                                         user_id=id,
                                         thread_id=str(thread_id),
-                                        user_message=data,
+                                        user_message=user_message,
                                         ai_response=full_response,
                                         topic=topic,
                                     )
