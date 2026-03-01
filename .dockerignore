@@ -1,0 +1,51 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local Testing / Databases
+*.sqlite3
+*.db
+supabase/
+
+# Hugging Face caches (in case you test locally)
+.huggingface/
+.cache
+.ollama/
+
+# Logs
+logs/
+*.log
+
+# Docker
+Dockerfile
+.dockerignore
