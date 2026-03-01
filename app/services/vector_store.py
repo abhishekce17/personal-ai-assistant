@@ -70,3 +70,42 @@ class VectorStoreService:
         except Exception as e:
             logger.error(f"Failed to initialize Qdrant Store: {e}")
             return None
+
+    @classmethod
+    async def delete_thread_vectors(cls, thread_id: str) -> bool:
+        """
+        Deletes all vector points associated with a specific thread_id.
+        Returns True on success, False if an error occurred.
+        """
+        try:
+            store = await cls.get_qdrant_store()
+            if not store:
+                logger.warning("Could not delete vectors: Qdrant store not available")
+                return False
+
+            collection_name = os.getenv("QDRANT_COLLECTION_NAME")
+            if not collection_name:
+                logger.warning("Could not delete vectors: QDRANT_COLLECTION_NAME not set")
+                return False
+
+            from qdrant_client.http import models
+
+            # Use the underlying client to perform a deletion by filter
+            store.client.delete(
+                collection_name=collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="thread_id",
+                                match=models.MatchValue(value=thread_id)
+                            )
+                        ]
+                    )
+                )
+            )
+            logger.info(f"Successfully deleted Qdrant vectors for thread: {thread_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete Qdrant vectors for thread {thread_id}: {e}")
+            return False

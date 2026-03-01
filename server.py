@@ -3,7 +3,7 @@ from app.api.routes.admin import (
     authentication as admin_authentication,
     model_management,
 )
-from app.api.routes.user import authentication, user, chat_management, chat_interaction, tool_auth_link, tools_management
+from app.api.routes.user import authentication, user, chat_management, chat_interaction, tool_auth_link, tools_management, staticdata, feature_flag
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
 from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management, feature_flag_management
 # from app.api.routes.webhook import tool_installation
@@ -60,6 +60,8 @@ app.include_router(
 app.include_router(
     tools_management.router, prefix="/tool-management", tags=["Tool Management"]
 )
+app.include_router(staticdata.router, prefix="/staticdata", tags=["Static Data"])
+app.include_router(feature_flag.router, prefix="/feature-flag", tags=["Feature Flag"])
 
 admin.middleware("http")(db_session_middleware_with_exception_handling)
 

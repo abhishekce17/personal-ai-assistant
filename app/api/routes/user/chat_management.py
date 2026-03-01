@@ -161,6 +161,12 @@ async def delete_chat_session(
     # 3. Delete from Redis
     # This happens after DB commit to ensure data consistency
     await RedisCheckpoint.delete_thread_memory(thread_id)
+
+    # 4. Delete vectorized documents from Qdrant
+    # Even if Qdrant deletion fails, we don't want to rollback DB/Redis
+    # as the core session logic is gone. The method handles its own logging.
+    from app.services.vector_store import VectorStoreService
+    await VectorStoreService.delete_thread_vectors(thread_id)
     
     return {"success": True, "data": None, "message": "Chat session deleted successfully"}
 
