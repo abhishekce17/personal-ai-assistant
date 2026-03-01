@@ -82,6 +82,15 @@ admin.include_router(feature_flag_management.router, prefix="/feature-flag-manag
 app.mount(path="/admin", app=admin, name="Admin")
 
 
+@app.get("/")
+async def root():
+    """Root endpoint for Hugging Face health checks and UI"""
+    return {
+        "success": True, 
+        "message": "Welcome to Orvio Backend API",
+        "docs_url": "/docs"
+    }
+
 @app.get("/health")
 async def health_check():
     """Basic health check endpoint"""
