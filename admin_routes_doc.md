@@ -25,7 +25,7 @@ The base path for all admin routes is `/admin`.
 
 ## 3. Model Management (`model_management.py`) - `/admin/model`
 
-_Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count`, `model_image`, `is_default`
+_Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count`, `model_image`, `context_window`, `is_default`
 
 | Method   | Path                                          | Description                           | Payload Data (Body/Query)                                                                                                                                        | Return Schema                                                          |
 | :------- | :-------------------------------------------- | :------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
