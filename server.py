@@ -21,7 +21,7 @@ app = FastAPI(lifespan=lifespan)
 admin = FastAPI(lifespan=lifespan)
 
 origins = [
-    "https://orvio-admin.vercel.app/",
+    "https://orvio-admin.vercel.app",
 ]
 
 # CORS for main app

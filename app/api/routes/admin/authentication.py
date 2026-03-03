@@ -33,8 +33,8 @@ async def admin_login(login: Login, request: Request, response: Response):
         httponly=True,             # ✅ JavaScript cannot read this (Security)
         max_age=60 * 60 * 24,      # 1 day in seconds
         expires=60 * 60 * 24,      # (Optional) consistency for older browsers
-        samesite="lax",            # ✅ Protects against CSRF
-        secure=is_production,      # ⚠️ Set to True if using HTTPS (Production), False for localhost (Development)
+        samesite="none",           # ✅ Required for cross-origin cookie delivery (frontend ≠ backend domain)
+        secure=True,               # ✅ Required when samesite="none" (backend must be HTTPS)
     )
 
     return {
