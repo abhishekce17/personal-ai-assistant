@@ -56,6 +56,7 @@ class ToolCreate(BaseModel):
     description: Optional[str]
     provider: Optional[str]
     image: Optional[str]
+    installation_url: Optional[str] = None
 
 class StaticdataCreate(BaseModel):
     reference_key: str
@@ -250,6 +251,7 @@ class Tool(BaseMixin, Base):
     tool_description = Column(Text)
     tool_provider = Column(String)
     tool_image = Column(String, nullable=True, default="")
+    installation_url = Column(String, nullable=True)
 
     plans = relationship("PlanTool", back_populates="tool")
 

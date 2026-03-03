@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body, status, Re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, or_, select
 from app.core.security import generate_github_jwt, get_current_user, verify_github_installation_ownership, encrypt_value, decrypt_value
-from db.models import User, PendingState, Tool, FederatedIdentity
+from db.models import User, PendingState, Tool, FederatedIdentity, PlanTool
 from pydantic import BaseModel
 import hashlib
 import time
@@ -198,3 +198,56 @@ async def activate_deactivate_tool(
         return await activate_row(db, FederatedIdentity, identity_link.id)
     elif (not is_active):
         return await deactivate_row(db, FederatedIdentity, identity_link.id)
+        
+
+@router.get("/list_available_tools", summary="List all active tools with plan availability")
+async def list_available_tools(
+    request: Request,
+    user: User = Depends(get_current_user)
+):
+    """
+    Returns a list of all globally active tools, marking which ones are available in the user's current plan.
+    """
+    db: AsyncSession = request.state.db
+    current_plan_id = user.current_plan_id
+
+    # Subquery to check if the tool is in the user's current plan
+    is_available_query = (
+        select(PlanTool.id)
+        .where(
+            PlanTool.tool_id == Tool.id,
+            PlanTool.plan_id == current_plan_id,
+            PlanTool.is_active == True
+        )
+        .exists()
+    )
+
+    # Main query: All globally active tools
+    query = (
+        select(
+            Tool.id,
+            Tool.tool_name,
+            Tool.tool_description,
+            Tool.tool_provider,
+            Tool.tool_image,
+            is_available_query.label("is_available")
+        )
+        .where(
+            Tool.is_active == True
+        )
+    )
+    
+    result = await db.execute(query)
+    
+    tools = []
+    for row in result.all():
+        tools.append({
+            "id": row.id,
+            "name": row.tool_name,
+            "description": row.tool_description,
+            "provider": row.tool_provider,
+            "image": row.tool_image,
+            "is_available": row.is_available
+        })
+
+    return {"success": True, "data": tools}

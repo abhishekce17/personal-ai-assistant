@@ -73,11 +73,18 @@ async def list_with_count(db: AsyncSession, primary_model, count_model, count_fk
     rows = result.scalars().all()
 
     # Query 2: Get counts via GROUP BY (uses indexes, no JOIN)
+    count_query = select(count_fk_column, func.count().label("cnt"))
+    
+    # Check if count_model has is_active
+    from sqlalchemy.inspection import inspect
+    mapper = inspect(count_model)
+    if "is_active" in mapper.attrs:
+        count_query = count_query.where(count_model.is_active == True)
+        
     count_result = await db.execute(
-        select(count_fk_column, func.count().label("cnt"))
-        .group_by(count_fk_column)
+        count_query.group_by(count_fk_column)
     )
-    count_map = {str(row[0]).lower(): row[1] for row in count_result.all()}
+    count_map = {str(row[0]).lower() if row[0] else "none": row[1] for row in count_result.all()}
 
     # Merge
     data = []

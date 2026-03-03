@@ -8,7 +8,7 @@ from app.core.security import verify_jwt_token, get_tool_access_token
 from utils.get_default_model import get_default_model_for_plan
 from app.core.config import RedisCheckpoint
 from utils.socket_agent_llm import SocketAgentLLM
-from utils.types import ConversationType
+from utils.types import ConversationType, ModelType
 import importlib
 import json
 from dotenv import load_dotenv
@@ -153,21 +153,25 @@ async def websocket_endpoint(websocket: WebSocket):
 
                     current_plan_id = user.current_plan_id
 
-                    # Dynamically resolve the default model for the user's plan
-                    default_model = await get_default_model_for_plan(db, current_plan_id)
+                    # Dynamically resolve the default CHAT model for the user's plan
+                    default_model = await get_default_model_for_plan(db, current_plan_id, model_type=ModelType.CHAT)
 
                     if default_model:
                         authorized_plan_model = default_model.model_name
 
-                    # Fetch active tools linked by this user and globally enabled
+                    # Fetch active tools linked by this user, enabled in their plan, and globally active
+                    from db.models import PlanTool
                     result = await db.execute(
                         select(FederatedIdentity.provider, FederatedIdentity.refresh_token)
                         .join(Tool, func.lower(Tool.tool_provider) == func.lower(FederatedIdentity.provider))
+                        .join(PlanTool, PlanTool.tool_id == Tool.id)
                         .where(
                             (FederatedIdentity.user_id == id)
                             & (FederatedIdentity.installation_id.isnot(None))
                             & (FederatedIdentity.is_active == True)
                             & (Tool.is_active == True)
+                            & (PlanTool.plan_id == current_plan_id)
+                            & (PlanTool.is_active == True)
                         )
                     )
                     active_identities = result.all()

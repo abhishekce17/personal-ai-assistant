@@ -110,11 +110,19 @@ async def list_models(
     models = result.scalars().all()
 
     # Count users per model via plan membership:
-    # Users → current_plan_id → PlanModel → model_id
+    # ONLY count active users in active plans with active mappings to active models.
+    from db.models import Plan
     count_result = await db.execute(
         select(PlanModel.model_id, func.count(func.distinct(User.id)).label("cnt"))
         .join(User, User.current_plan_id == PlanModel.plan_id)
-        .where(PlanModel.is_active == True)
+        .join(Plan, Plan.id == PlanModel.plan_id)
+        .join(Model, Model.id == PlanModel.model_id)
+        .where(
+            (User.is_active == True) &
+            (Plan.is_active == True) &
+            (PlanModel.is_active == True) &
+            (Model.is_active == True)
+        )
         .group_by(PlanModel.model_id)
     )
     count_map = {str(row[0]).lower(): row[1] for row in count_result.all()}

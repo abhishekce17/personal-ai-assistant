@@ -42,6 +42,7 @@ async def create_tool(
             tool_description=tool_data.description,
             tool_provider=tool_data.provider,
             tool_image=tool_data.image,
+            installation_url=tool_data.installation_url,
         )
         db.add(tool)
         await db.commit()
@@ -104,6 +105,9 @@ async def update_tool(
     if tool_data.image:
         tool.tool_image = tool_data.image
 
+    if tool_data.installation_url:
+        tool.installation_url = tool_data.installation_url
+
     try:
         await db.commit()
         await db.refresh(tool)
@@ -119,6 +123,7 @@ async def update_tool(
             "provider": tool.tool_provider,
             "description": tool.tool_description,
             "image": tool.tool_image,
+            "installation_url": tool.installation_url,
         },
         "message": "Tool updated",
     }
