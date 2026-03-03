@@ -11,6 +11,11 @@ class IdentityScope(Enum):
     ENTERPRISE = "Enterprise"
     OTHER = "Other"
 
+class ModelType(str, Enum):
+    CHAT = "chat"           # User-facing models (linked to plans, used in chat)
+    INTERNAL = "internal"   # Backend sub-agents (title gen, routing, summarization)
+    SYSTEM = "system"       # Guardrails, moderation, safety filters
+
 class ArtifactFormat(Enum):
     JSON = "application/json"
     MARKDOWN = "text/markdown"

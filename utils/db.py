@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from sqlalchemy import update, select
 
-async def unset_default_for_all(session: AsyncSession, model):
+async def unset_default_for_all(session: AsyncSession, model, condition=None):
     """
     Set is_default = False for all rows where it is currently True.
     Caller must commit the session.
@@ -10,10 +10,13 @@ async def unset_default_for_all(session: AsyncSession, model):
     if not hasattr(model, 'is_default'):
         raise AttributeError(f"The model {model.__name__} does not have an 'is_default' column.")
 
+    query = update(model).where(model.is_default == True)
+    
+    if condition is not None:
+        query = query.where(condition)
+
     result = await session.execute(
-        update(model)
-        .where(model.is_default == True)
-        .values(is_default=False)
+        query.values(is_default=False)
     )
 
     print(f"Updated {result.rowcount} rows in {model.__name__}")

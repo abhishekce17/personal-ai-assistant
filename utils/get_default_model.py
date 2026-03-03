@@ -22,7 +22,7 @@ async def get_default_model_for_plan(db: AsyncSession, plan_id: str):
         .where(
             (PlanModel.plan_id == plan_id)
             & (PlanModel.is_active == True)
-            & (Model.is_default == True)
+            & (PlanModel.is_default == True)
             & (Model.is_active == True)
         )
     )

@@ -3,6 +3,7 @@ from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from db.models import ModelCreate, Model, ModelUpdate, User, PlanModel
+from utils.types import ModelType
 from utils.db import deactivate_row, unset_default_for_all, activate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
@@ -29,17 +30,14 @@ async def create_model(
     if existing:
         raise HTTPException(status_code=409, detail="Model already exists")
 
-    if model_data.is_default:
-        await unset_default_for_all(db, Model)
-
     model = Model(
         model_name=model_data.model_name,
         model_description=model_data.model_description,
         model_provider=model_data.model_provider,
+        model_type=model_data.model_type,
         model_image=model_data.model_image,
         tool_support=model_data.tool_support,
         context_window=model_data.context_window,
-        is_default=model_data.is_default,
     )
 
     db.add(model)
@@ -67,23 +65,20 @@ async def update_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    if model_data.is_default is True:
-        await unset_default_for_all(db, Model)
-
     if model_data.model_name is not None:
         model.model_name = model_data.model_name
     if model_data.model_description is not None:
         model.model_description = model_data.model_description
     if model_data.model_provider is not None:
         model.model_provider = model_data.model_provider
+    if model_data.model_type is not None:
+        model.model_type = model_data.model_type
     if model_data.model_image is not None:
         model.model_image = model_data.model_image
     if model_data.tool_support is not None:
         model.tool_support = model_data.tool_support
     if model_data.context_window is not None:
         model.context_window = model_data.context_window
-    if model_data.is_default is not None:
-        model.is_default = model_data.is_default
 
     await db.commit()
     await db.refresh(model)
@@ -93,6 +88,14 @@ async def update_model(
         "message": "Model updated",
         "model": {"id": model.id, "name": model.model_name},
     }
+
+
+@router.get("/types", summary="Get all available model types")
+async def get_model_types(
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    return {"success": True, "data": [t.value for t in ModelType]}
 
 
 @router.get("/list", summary="List all models")

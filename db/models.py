@@ -17,7 +17,7 @@ from sqlalchemy.orm import relationship
 from typing import Optional
 import uuid
 
-from utils.types import ArtifactFormat, IdentityScope
+from utils.types import ArtifactFormat, IdentityScope, ModelType
 
 class StructuredResponse(BaseModel):
     topic_name: Optional[str] = Field(
@@ -50,7 +50,6 @@ class PlanCreate(BaseModel):
     name: str
     price: int
     description: Optional[str]
-    is_default: Optional[bool]
 
 class ToolCreate(BaseModel):
     name: str
@@ -82,27 +81,31 @@ class PlanUpdate(BaseModel):
 
 
 class ModelCreate(BaseModel):
-    model_name: str
     model_description: str
     model_provider: str
+    model_type: ModelType = ModelType.CHAT
     tool_support: Optional[bool] = None
     model_image: Optional[str] = None
     context_window: Optional[int] = None
-    is_default: Optional[bool] = None
 
 class ModelUpdate(BaseModel):
-    model_name: Optional[str] = None
     model_description: Optional[str] = None
     model_provider: Optional[str] = None
+    model_type: Optional[ModelType] = None
     model_image: Optional[str] = None
     tool_support: Optional[bool] = None
     context_window: Optional[int] = None
-    is_default: Optional[bool] = None
 
 
 class PlanModelCreate(BaseModel):
     plan_id: str
     model_id: str
+    is_default: Optional[bool] = False
+
+
+class PlanModelUpdate(BaseModel):
+    is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class PlanToolCreate(BaseModel):
@@ -215,10 +218,10 @@ class Model(BaseMixin, Base):
     model_name = Column(String, nullable=False)
     model_description = Column(Text)
     model_provider = Column(String)
+    model_type = Column(Enum(ModelType, name="model_type_enum"), nullable=False, default=ModelType.CHAT)
     tool_support = Column(Boolean, default=True)
     model_image = Column(String, nullable=True, default="")
     context_window = Column(Integer, nullable=True) # Max tokens capability
-    is_default = Column(Boolean, default=False)
 
 
 # Plans Table
@@ -268,6 +271,7 @@ class PlanModel(BaseMixin, Base):
 
     plan_id = Column(String, ForeignKey("plans.id"), index=True)
     model_id = Column(String, ForeignKey("models.id"), index=True)
+    is_default = Column(Boolean, default=False)
 
     plan = relationship("Plan", back_populates="models")
     model = relationship("Model")
