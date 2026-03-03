@@ -186,6 +186,7 @@ class User(BaseMixin, Base):
     current_plan_id = Column(String, ForeignKey("plans.id"), index=True)
     terms_and_condition = Column(Boolean, default=True)
     avatar = Column(String)
+    is_verified = Column(Boolean, default=False)
 
     plan = relationship("Plan", back_populates="users")
     default_model = relationship("Model")
@@ -215,7 +216,6 @@ class Model(BaseMixin, Base):
     model_description = Column(Text)
     model_provider = Column(String)
     tool_support = Column(Boolean, default=True)
-    user_count = Column(Integer, default=0)
     model_image = Column(String, nullable=True, default="")
     context_window = Column(Integer, nullable=True) # Max tokens capability
     is_default = Column(Boolean, default=False)
@@ -227,7 +227,6 @@ class Plan(BaseMixin, Base):
 
     name = Column(String, nullable=False, unique=True)
     slug = Column(String, unique=True, nullable=False)
-    subscription_count = Column(Integer, default=0)
     price = Column(Integer)  # in cents
     description = Column(Text)
     is_default = Column(Boolean, default=False)
@@ -245,7 +244,6 @@ class Tool(BaseMixin, Base):
     tool_name = Column(String, nullable=False, unique=True)
     tool_description = Column(Text)
     tool_provider = Column(String)
-    user_count = Column(Integer, default=0)
     tool_image = Column(String, nullable=True, default="")
 
     plans = relationship("PlanTool", back_populates="tool")
