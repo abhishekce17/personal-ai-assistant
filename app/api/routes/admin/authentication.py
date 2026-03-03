@@ -70,3 +70,14 @@ async def admin_register(register: AdminRegister, request: Request):
         "token": token,
     }
 
+
+@router.post("/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        samesite="none",
+        secure=True,
+        httponly=True,
+    )
+    return {"message": "Admin logged out successfully"}
+
