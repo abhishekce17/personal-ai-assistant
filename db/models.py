@@ -117,8 +117,8 @@ class FeatureCreate(BaseModel):
 
 class FeatureFlagCreate(BaseModel):
     reference_key: str
-    description: Optional[str]
-    revision_id: Optional[int]
+    description: Optional[str] = None
+    revision_id: Optional[int] = None
 
 
 

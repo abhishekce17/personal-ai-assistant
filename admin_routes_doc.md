@@ -25,7 +25,7 @@ The base path for all admin routes is `/admin`.
 
 ## 3. Model Management (`model_management.py`) - `/admin/model`
 
-_Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count`, `model_image`, `context_window`, `is_default`
+_Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`, `model_description`, `model_provider`, `tool_support`, `user_count` _(computed)_, `model_image`, `context_window`, `is_default`
 
 | Method   | Path                                          | Description                           | Payload Data (Body/Query)                                                                                                                                        | Return Schema                                                          |
 | :------- | :-------------------------------------------- | :------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |
@@ -37,7 +37,7 @@ _Full Model Object_: `id`, `created_at`, `updated_at`, `is_active`, `model_name`
 
 ## 4. Plan Management (`plan_management.py`) - `/admin/plan`
 
-_Full Plan Object_: `id`, `created_at`, `updated_at`, `is_active`, `name`, `slug`, `subscription_count`, `price`, `description`, `is_default`
+_Full Plan Object_: `id`, `created_at`, `updated_at`, `is_active`, `name`, `slug`, `subscription_count` _(computed)_, `price`, `description`, `is_default`
 
 | Method   | Path                                        | Description                          | Payload Data (Body/Query)                                                                                                                       | Return Schema                                                                                           |
 | :------- | :------------------------------------------ | :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ |
@@ -61,7 +61,7 @@ _Full SystemArtifact Object_: `id`, `created_at`, `updated_at`, `is_active`, `re
 
 ## 6. Tool Management (`tool_management.py`) - `/admin/tool-management`
 
-_Full Tool Object_: `id`, `created_at`, `updated_at`, `is_active`, `tool_name`, `tool_description`, `tool_provider`, `user_count`, `tool_image`
+_Full Tool Object_: `id`, `created_at`, `updated_at`, `is_active`, `tool_name`, `tool_description`, `tool_provider`, `user_count` _(computed)_, `tool_image`
 
 | Method   | Path                                                   | Description                          | Payload Data (Body/Query)                                                                      | Return Schema                                                                                                            |
 | :------- | :----------------------------------------------------- | :----------------------------------- | :--------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
@@ -92,7 +92,7 @@ _Full Tool Object_: `id`, `created_at`, `updated_at`, `is_active`, `tool_name`, 
 
 ## 9. Monitoring (`monitoring.py`) - `/admin/monitoring`
 
-| Method | Path                       | Description                                                      | Payload Data (Body/Query) | Return Schema                                                                                                                                                           |
-| :----- | :------------------------- | :--------------------------------------------------------------- | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`  | `/admin/monitoring/health` | Full health check: Database, Redis, Ollama status + system info. | None                      | `{"success": bool, "overall_status": "healthy"\|"degraded", "services": {"database": {...}, "redis": {...}, "ollama": {...}, "system": {...}}}`                         |
-| `GET`  | `/admin/monitoring/stats`  | Application statistics: user counts, chat sessions, uptime.      | None                      | `{"success": bool, "data": {"users": {"total": int, "active": int, "verified": int, "inactive": int}, "chat_sessions": int, "tool_links": int, "uptime_seconds": int}}` |
+| Method | Path                       | Description                                                      | Payload Data (Body/Query) | Return Schema                                                                                                                                                                                      |
+| :----- | :------------------------- | :--------------------------------------------------------------- | :------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/admin/monitoring/health` | Full health check: Database, Redis, Ollama status + system info. | None                      | `{"success": bool, "overall_status": "healthy"\|"degraded", "services": {"database": {...}, "redis": {...}, "ollama": {...}, "system": {...}}}`                                                    |
+| `GET`  | `/admin/monitoring/stats`  | Application statistics: user counts, chat sessions, uptime.      | None                      | `{"success": bool, "data": {"users": {"total": int, "active": int, "verified": int, "inactive": int}, "chat_sessions": int, "tool_links": int, "active_connections": int, "uptime_seconds": int}}` |

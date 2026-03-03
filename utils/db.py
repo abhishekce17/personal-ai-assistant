@@ -74,12 +74,13 @@ async def list_with_count(db: AsyncSession, primary_model, count_model, count_fk
         select(count_fk_column, func.count().label("cnt"))
         .group_by(count_fk_column)
     )
-    count_map = {row[0]: row[1] for row in count_result.all()}
+    count_map = {str(row[0]).lower(): row[1] for row in count_result.all()}
 
     # Merge
     data = []
     for row in rows:
         row_dict = {c.name: getattr(row, c.name) for c in primary_model.__table__.columns}
-        row_dict[count_label] = count_map.get(getattr(row, primary_pk_column.key), 0)
+        pk_val = getattr(row, primary_pk_column.key)
+        row_dict[count_label] = count_map.get(str(pk_val).lower(), 0) if pk_val else 0
         data.append(row_dict)
     return data
