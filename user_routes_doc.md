@@ -12,12 +12,12 @@ These routes are mounted on the main `app` instance with specific prefixes.
 
 ## 2. User Management (`user.py`) - `/user`
 
-| Method   | Path             | Description               | Payload Data (Body/Query)                                                           | Return Schema                                           |
-| :------- | :--------------- | :------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------ |
-| `GET`    | `/user/me`       | Get Current User Details. | **None**                                                                            | `{"user": UserObject, "success": bool}`                 |
-| `POST`   | `/user/update`   | Update User Profile.      | **Query**: `name` (opt), `email` (opt), `avatar_id` (opt), `default_model_id` (opt) | `{"success": bool, "user": UserObject, "message": str}` |
-| `PUT`    | `/user/password` | Update Password.          | **Query**: `old_password`, `new_password`                                           | `{"success": bool, "data": null, "message": str}`       |
-| `DELETE` | `/user/delete`   | Delete Personal Account.  | **Query**: `password`                                                               | `204 No Content`                                        |
+| Method   | Path             | Description               | Payload Data (Body/Query)                                 | Return Schema                                           |
+| :------- | :--------------- | :------------------------ | :-------------------------------------------------------- | :------------------------------------------------------ |
+| `GET`    | `/user/me`       | Get Current User Details. | **None**                                                  | `{"user": UserObject, "success": bool}`                 |
+| `POST`   | `/user/update`   | Update User Profile.      | **Query**: `name` (opt), `email` (opt), `avatar_id` (opt) | `{"success": bool, "user": UserObject, "message": str}` |
+| `PUT`    | `/user/password` | Update Password.          | **Query**: `old_password`, `new_password`                 | `{"success": bool, "data": null, "message": str}`       |
+| `DELETE` | `/user/delete`   | Delete Personal Account.  | **Query**: `password`                                     | `204 No Content`                                        |
 
 ## 3. Static Data (`staticdata.py`) - `/staticdata`
 

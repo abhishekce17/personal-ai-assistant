@@ -1,9 +1,9 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from db.models import ModelCreate, Model, ModelUpdate, User
-from utils.db import deactivate_row, unset_default_for_all, activate_row, list_with_count
+from sqlalchemy import select, func
+from db.models import ModelCreate, Model, ModelUpdate, User, PlanModel
+from utils.db import deactivate_row, unset_default_for_all, activate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -101,7 +101,27 @@ async def list_models(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
-    data = await list_with_count(db, Model, User, User.default_model_id, Model.id, "user_count")
+
+    # Fetch all models
+    result = await db.execute(select(Model))
+    models = result.scalars().all()
+
+    # Count users per model via plan membership:
+    # Users → current_plan_id → PlanModel → model_id
+    count_result = await db.execute(
+        select(PlanModel.model_id, func.count(func.distinct(User.id)).label("cnt"))
+        .join(User, User.current_plan_id == PlanModel.plan_id)
+        .where(PlanModel.is_active == True)
+        .group_by(PlanModel.model_id)
+    )
+    count_map = {str(row[0]).lower(): row[1] for row in count_result.all()}
+
+    data = []
+    for model in models:
+        row_dict = {c.name: getattr(model, c.name) for c in Model.__table__.columns}
+        row_dict["user_count"] = count_map.get(str(model.id).lower(), 0)
+        data.append(row_dict)
+
     return {"success": True, "data": data}
 
 

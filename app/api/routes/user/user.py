@@ -19,7 +19,6 @@ async def update_user(
     name: str = None,
     email: str = None,
     avatar_id: str = None,
-    default_model_id: str = None,
 ):
     db: AsyncSession = request.state.db
     if name:
@@ -28,8 +27,6 @@ async def update_user(
         user.email = email
     if avatar_id:
         user.avatar = avatar_id
-    if default_model_id:
-        user.default_model_id = default_model_id
 
     await db.commit()
     await db.refresh(user)

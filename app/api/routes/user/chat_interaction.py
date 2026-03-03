@@ -3,8 +3,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, HTTPExcep
 from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy import func, select
 from utils.agent_creator import AgentCreator, generate_title
-from db.models import Model, User, PlanModel, FederatedIdentity, Tool
+from db.models import Model, User, FederatedIdentity, Tool
 from app.core.security import verify_jwt_token, get_tool_access_token
+from utils.get_default_model import get_default_model_for_plan
 from app.core.config import RedisCheckpoint
 from utils.socket_agent_llm import SocketAgentLLM
 from utils.types import ConversationType
@@ -138,9 +139,9 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 authorized_plan_model = None
                 async with get_db_session() as db:
-                    # Get user and model information
+                    # Get user's current plan
                     result = await db.execute(
-                        select(User.default_model_id, User.current_plan_id)
+                        select(User.current_plan_id)
                         .where((User.id == id) & (User.is_active == True))
                     )
                     user = result.first()
@@ -150,19 +151,13 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                         return
 
-                    default_model_id = user.default_model_id
                     current_plan_id = user.current_plan_id
 
-                    result = await db.execute(
-                        select(Model.model_name)
-                        .join(PlanModel, PlanModel.model_id == Model.id)
-                        .where(
-                            (PlanModel.model_id == default_model_id)
-                            & (PlanModel.plan_id == current_plan_id)
-                            & (PlanModel.is_active == True)
-                        )
-                    )
-                    authorized_plan_model = result.scalar_one_or_none()
+                    # Dynamically resolve the default model for the user's plan
+                    default_model = await get_default_model_for_plan(db, current_plan_id)
+
+                    if default_model:
+                        authorized_plan_model = default_model.model_name
 
                     # Fetch active tools linked by this user and globally enabled
                     result = await db.execute(

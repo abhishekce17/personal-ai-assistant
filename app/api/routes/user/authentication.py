@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
-from db.models import Login, Register, User, Plan, PlanModel, Model
+from db.models import Login, Register, User, Plan
 from app.core.security import hash_password, create_jwt_token
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -69,26 +69,12 @@ async def register(register: Register, request: Request):
     if not default_plan:
         raise HTTPException(status_code=400, detail="No active plan found")
 
-    result = await db.execute(
-        select(PlanModel)
-        .where(PlanModel.plan_id == default_plan.id)
-        .join(Model)
-        .where((Model.is_default == True) & (Model.is_active == True))
-    )
-    mapping = result.scalars().first()
-    
-    if not mapping:
-        raise HTTPException(
-            status_code=400, detail=f"No default model for {default_plan.name} plan"
-        )
-
     new_user = User(
         name=register.name,
         email=register.email,
         password=hash_password(register.password),
         terms_and_condition=register.terms_and_condition,
         current_plan_id=default_plan.id,
-        default_model_id=mapping.model_id,
         avatar="",
     )
 
