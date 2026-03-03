@@ -85,9 +85,10 @@ class ModelCreate(BaseModel):
     model_name: str
     model_description: str
     model_provider: str
-    tool_support: Optional[bool]
-    model_image: Optional[str]
-    is_default: Optional[bool]
+    tool_support: Optional[bool] = None
+    model_image: Optional[str] = None
+    context_window: Optional[int] = None
+    is_default: Optional[bool] = None
 
 class ModelUpdate(BaseModel):
     model_name: Optional[str] = None
@@ -95,6 +96,7 @@ class ModelUpdate(BaseModel):
     model_provider: Optional[str] = None
     model_image: Optional[str] = None
     tool_support: Optional[bool] = None
+    context_window: Optional[int] = None
     is_default: Optional[bool] = None
 
 

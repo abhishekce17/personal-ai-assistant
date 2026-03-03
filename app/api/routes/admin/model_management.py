@@ -38,6 +38,7 @@ async def create_model(
         model_provider=model_data.model_provider,
         model_image=model_data.model_image,
         tool_support=model_data.tool_support,
+        context_window=model_data.context_window,
         is_default=model_data.is_default,
     )
 
@@ -79,6 +80,8 @@ async def update_model(
         model.model_image = model_data.model_image
     if model_data.tool_support is not None:
         model.tool_support = model_data.tool_support
+    if model_data.context_window is not None:
+        model.context_window = model_data.context_window
     if model_data.is_default is not None:
         model.is_default = model_data.is_default
 
