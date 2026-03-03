@@ -5,10 +5,11 @@ The base path for all admin routes is `/admin`.
 
 ## 1. Authentication (`authentication.py`) - `/admin/auth`
 
-| Method | Path                   | Description                           | Payload Data (Body/Query)                                                | Return Schema                          |
-| :----- | :--------------------- | :------------------------------------ | :----------------------------------------------------------------------- | :------------------------------------- |
-| `POST` | `/admin/auth/login`    | Admin login. Returns an access token. | **Body**: `{"email": str, "password": str}`                              | `{"message": str, "accessToken": str}` |
-| `POST` | `/admin/auth/register` | Register a new admin.                 | **Body**: `{"name": str, "email": str, "password": str, "role_id": str}` | `{"message": str, "token": str}`       |
+| Method | Path                   | Description                           | Payload Data (Body/Query)                                                | Return Schema                                                                              |
+| :----- | :--------------------- | :------------------------------------ | :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
+| `POST` | `/admin/auth/login`    | Admin login. Returns an access token. | **Body**: `{"email": str, "password": str}`                              | `{"message": str, "accessToken": str}`                                                     |
+| `POST` | `/admin/auth/register` | Register a new admin.                 | **Body**: `{"name": str, "email": str, "password": str, "role_id": str}` | `{"message": str, "token": str}`                                                           |
+| `GET`  | `/admin/auth/validate` | Validate admin cookie/token.          | None                                                                     | `{"id": str, "name": str, "email": str, "role_id": str, "avatar": str, "is_active": bool}` |
 
 ## 2. Plan & Model/Tool Mapping (`model_feature_tools_plan_mapping.py`) - `/admin/model-feature-tools-plan-mapping`
 
