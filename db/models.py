@@ -81,14 +81,16 @@ class PlanUpdate(BaseModel):
 
 
 class ModelCreate(BaseModel):
-    model_description: str
-    model_provider: str
+    model_name: str
+    model_description: Optional[str] = None
+    model_provider: Optional[str] = None
     model_type: ModelType = ModelType.CHAT
     tool_support: Optional[bool] = None
     model_image: Optional[str] = None
     context_window: Optional[int] = None
 
 class ModelUpdate(BaseModel):
+    model_name: Optional[str] = None
     model_description: Optional[str] = None
     model_provider: Optional[str] = None
     model_type: Optional[ModelType] = None

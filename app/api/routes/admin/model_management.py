@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from db.models import ModelCreate, Model, ModelUpdate, User, PlanModel
 from utils.types import ModelType
-from utils.db import deactivate_row, unset_default_for_all, activate_row
+from utils.db import deactivate_row, activate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
