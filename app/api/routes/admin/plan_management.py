@@ -2,9 +2,9 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from db.models import Plan, PlanCreate
+from db.models import Plan, PlanCreate, User
 from sqlalchemy.exc import IntegrityError
-from utils.db import activate_row, deactivate_row, unset_default_for_all
+from utils.db import activate_row, deactivate_row, unset_default_for_all, list_with_count
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -52,9 +52,8 @@ async def list_plans(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
-    result = await db.execute(select(Plan))
-    plans = result.scalars().all()
-    return {"success": True, "data": plans}
+    data = await list_with_count(db, Plan, User, User.current_plan_id, Plan.id, "subscription_count")
+    return {"success": True, "data": data}
 
 
 @router.delete("/delete/{plan_id}", summary="Delete a plan")

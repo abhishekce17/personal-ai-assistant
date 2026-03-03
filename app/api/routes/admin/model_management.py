@@ -2,8 +2,8 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from db.models import ModelCreate, Model, ModelUpdate
-from utils.db import deactivate_row, unset_default_for_all, activate_row
+from db.models import ModelCreate, Model, ModelUpdate, User
+from utils.db import deactivate_row, unset_default_for_all, activate_row, list_with_count
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -98,9 +98,8 @@ async def list_models(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
-    result = await db.execute(select(Model))
-    models = result.scalars().all()
-    return {"success": True, "data": models}
+    data = await list_with_count(db, Model, User, User.default_model_id, Model.id, "user_count")
+    return {"success": True, "data": data}
 
 
 @router.delete("/delete/{model_id}", summary="Delete a model")

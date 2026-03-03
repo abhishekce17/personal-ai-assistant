@@ -4,12 +4,12 @@ from fastapi import HTTPException, Depends, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from db.models import Plan, Tool, ToolCreate
+from db.models import Plan, Tool, ToolCreate, FederatedIdentity
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
 
-from utils.db import activate_row, deactivate_row
+from utils.db import activate_row, deactivate_row, list_with_count
 
 load_dotenv()
 
@@ -57,9 +57,8 @@ async def list_tools(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
-    result = await db.execute(select(Tool))
-    tools = result.scalars().all()
-    return {"success": True, "data": tools}
+    data = await list_with_count(db, Tool, FederatedIdentity, FederatedIdentity.provider, Tool.tool_provider, "user_count")
+    return {"success": True, "data": data}
 
 
 @router.delete("/delete/{tool_id}", summary="Delete a tool")

@@ -47,3 +47,39 @@ async def activate_row(db : AsyncSession, Model, id: str):
 
 async def deactivate_row(db : AsyncSession, Model, id: str):
     return await _toggle_activation_row(db, Model, id, False)
+
+
+async def list_with_count(db: AsyncSession, primary_model, count_model, count_fk_column, primary_pk_column, count_label: str = "user_count"):
+    """
+    Generic list with dynamic count using two separate queries (faster than JOIN).
+    1. Fetches all rows from primary_model
+    2. Runs a GROUP BY COUNT on count_model
+    3. Merges counts in Python
+
+    Args:
+        primary_model: The main table (e.g., Model, Plan, Tool)
+        count_model: The table to count from (e.g., User, FederatedIdentity)
+        count_fk_column: The column in count_model to group by (e.g., User.default_model_id)
+        primary_pk_column: The PK column in primary_model to match against (e.g., Model.id)
+        count_label: The label for the count field in the response
+    """
+    from sqlalchemy import func
+
+    # Query 1: Fetch all rows
+    result = await db.execute(select(primary_model))
+    rows = result.scalars().all()
+
+    # Query 2: Get counts via GROUP BY (uses indexes, no JOIN)
+    count_result = await db.execute(
+        select(count_fk_column, func.count().label("cnt"))
+        .group_by(count_fk_column)
+    )
+    count_map = {row[0]: row[1] for row in count_result.all()}
+
+    # Merge
+    data = []
+    for row in rows:
+        row_dict = {c.name: getattr(row, c.name) for c in primary_model.__table__.columns}
+        row_dict[count_label] = count_map.get(getattr(row, primary_pk_column.key), 0)
+        data.append(row_dict)
+    return data
