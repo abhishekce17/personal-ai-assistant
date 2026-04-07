@@ -1,12 +1,3 @@
----
-title: Orvio HF Backend
-emoji: 🚀
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
----
-
 # Orvio HF Backend (Personal AI Assistant)
 
 This repository contains the backend service for **Orvio**, a personal AI assistant. It is designed to be fully self-contained, running a high-performance **FastAPI** server alongside **Redis Stack** and a local **Ollama** embedding model. Everything is bundled inside a single Docker container managed by **Supervisord**, making it fully optimized for deployments on platforms like Hugging Face Spaces.
@@ -51,7 +42,7 @@ To test or run this backend locally, ensure you have [Docker](https://www.docker
 
 ## 🏗️ Backend Architecture
 
-The following diagram illustrates the internal flow of data and how the different services interact within the single Hugging Face Docker container.
+The following diagram illustrates the internal flow of data and how the different services interact within the single Docker container.
 
 ```mermaid
 graph TD
@@ -67,7 +58,7 @@ graph TD
     Client_Admin["💻 Admin Client"]:::client
 
     %% Docker Container Wrapper
-    subgraph Docker_Container ["🐳 Single Docker Container(HuggingFace Space)"]
+    subgraph Docker_Container ["🐳 Single Docker Container"]
         
         %% API Layer
         FastAPI_Server["⚡ FastAPI Server<br/>(server.py)"]:::api
