@@ -17,7 +17,7 @@ from sqlalchemy.orm import relationship
 from typing import Optional
 import uuid
 
-from utils.types import ArtifactFormat, IdentityScope
+from utils.types import ArtifactFormat, IdentityScope, ModelType
 
 class StructuredResponse(BaseModel):
     topic_name: Optional[str] = Field(
@@ -50,13 +50,13 @@ class PlanCreate(BaseModel):
     name: str
     price: int
     description: Optional[str]
-    is_default: Optional[bool]
 
 class ToolCreate(BaseModel):
     name: str
     description: Optional[str]
     provider: Optional[str]
     image: Optional[str]
+    installation_url: Optional[str] = None
 
 class StaticdataCreate(BaseModel):
     reference_key: str
@@ -83,24 +83,32 @@ class PlanUpdate(BaseModel):
 
 class ModelCreate(BaseModel):
     model_name: str
-    model_description: str
-    model_provider: str
-    tool_support: Optional[bool]
-    model_image: Optional[str]
-    is_default: Optional[bool]
+    model_description: Optional[str] = None
+    model_provider: Optional[str] = None
+    model_type: ModelType = ModelType.CHAT
+    tool_support: Optional[bool] = None
+    model_image: Optional[str] = None
+    context_window: Optional[int] = None
 
 class ModelUpdate(BaseModel):
     model_name: Optional[str] = None
     model_description: Optional[str] = None
     model_provider: Optional[str] = None
+    model_type: Optional[ModelType] = None
     model_image: Optional[str] = None
     tool_support: Optional[bool] = None
-    is_default: Optional[bool] = None
+    context_window: Optional[int] = None
 
 
 class PlanModelCreate(BaseModel):
     plan_id: str
     model_id: str
+    is_default: Optional[bool] = False
+
+
+class PlanModelUpdate(BaseModel):
+    is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
 
 
 class PlanToolCreate(BaseModel):
@@ -117,8 +125,8 @@ class FeatureCreate(BaseModel):
 
 class FeatureFlagCreate(BaseModel):
     reference_key: str
-    description: Optional[str]
-    revision_id: Optional[int]
+    description: Optional[str] = None
+    revision_id: Optional[int] = None
 
 
 
@@ -182,13 +190,12 @@ class User(BaseMixin, Base):
     name = Column(String)
     email = Column(String, unique=True, index=True)
     password = Column(String)
-    default_model_id = Column(String, ForeignKey("models.id"), index=True)
     current_plan_id = Column(String, ForeignKey("plans.id"), index=True)
     terms_and_condition = Column(Boolean, default=True)
     avatar = Column(String)
+    is_verified = Column(Boolean, default=False)
 
     plan = relationship("Plan", back_populates="users")
-    default_model = relationship("Model")
     plan_history = relationship("UserPlanHistory", back_populates="user")
     chat_sessions = relationship("ChatSession", back_populates="user")
     federated_identities = relationship("FederatedIdentity", back_populates="user", cascade="all, delete-orphan")
@@ -214,11 +221,10 @@ class Model(BaseMixin, Base):
     model_name = Column(String, nullable=False)
     model_description = Column(Text)
     model_provider = Column(String)
+    model_type = Column(Enum(ModelType, name="model_type_enum"), nullable=False, default=ModelType.CHAT)
     tool_support = Column(Boolean, default=True)
-    user_count = Column(Integer, default=0)
     model_image = Column(String, nullable=True, default="")
     context_window = Column(Integer, nullable=True) # Max tokens capability
-    is_default = Column(Boolean, default=False)
 
 
 # Plans Table
@@ -227,7 +233,6 @@ class Plan(BaseMixin, Base):
 
     name = Column(String, nullable=False, unique=True)
     slug = Column(String, unique=True, nullable=False)
-    subscription_count = Column(Integer, default=0)
     price = Column(Integer)  # in cents
     description = Column(Text)
     is_default = Column(Boolean, default=False)
@@ -245,8 +250,8 @@ class Tool(BaseMixin, Base):
     tool_name = Column(String, nullable=False, unique=True)
     tool_description = Column(Text)
     tool_provider = Column(String)
-    user_count = Column(Integer, default=0)
     tool_image = Column(String, nullable=True, default="")
+    installation_url = Column(String, nullable=True)
 
     plans = relationship("PlanTool", back_populates="tool")
 
@@ -270,6 +275,7 @@ class PlanModel(BaseMixin, Base):
 
     plan_id = Column(String, ForeignKey("plans.id"), index=True)
     model_id = Column(String, ForeignKey("models.id"), index=True)
+    is_default = Column(Boolean, default=False)
 
     plan = relationship("Plan", back_populates="models")
     model = relationship("Model")

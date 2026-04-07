@@ -2,9 +2,9 @@ from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from db.models import Plan, PlanCreate
+from db.models import Plan, PlanCreate, User
 from sqlalchemy.exc import IntegrityError
-from utils.db import activate_row, deactivate_row, unset_default_for_all
+from utils.db import activate_row, deactivate_row, list_with_count
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -29,14 +29,12 @@ async def create_plan(
     
     if existing:
         raise HTTPException(status_code=409, detail="Plan already exists")
-    if plan_data.is_default:
-        await unset_default_for_all(db, Plan)
     plan = Plan(
         name=plan_data.name,
         slug=plan_data.name.lower().replace(" ", "_"),
         price=plan_data.price,
         description=plan_data.description,
-        is_default=plan_data.is_default,
+        is_default=False,
     )
 
     db.add(plan)
@@ -52,9 +50,8 @@ async def list_plans(
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
-    result = await db.execute(select(Plan))
-    plans = result.scalars().all()
-    return {"success": True, "data": plans}
+    data = await list_with_count(db, Plan, User, User.current_plan_id, Plan.id, "subscription_count")
+    return {"success": True, "data": data}
 
 
 @router.delete("/delete/{plan_id}", summary="Delete a plan")
@@ -117,6 +114,52 @@ async def update_plan(
         },
         "success": True,
     }
+
+@router.patch("/toggle-default/{plan_id}", summary="Toggle a plan as the default (free) plan")
+async def toggle_default_plan(
+    plan_id: str,
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: AsyncSession = request.state.db
+
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = result.scalars().first()
+
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # If toggling ON as default, validate
+    if not plan.is_default:
+        if plan.price and plan.price > 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Only a free plan (price = 0) can be set as the default plan"
+            )
+        # Check if another plan is already set as default
+        result = await db.execute(
+            select(Plan).where((Plan.is_default == True) & (Plan.id != plan_id))
+        )
+        existing_default = result.scalars().first()
+        if existing_default:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Plan '{existing_default.name}' is already set as default. Remove it first."
+            )
+        plan.is_default = True
+    else:
+        # Toggling OFF — remove default status
+        plan.is_default = False
+
+    await db.commit()
+    await db.refresh(plan)
+
+    return {
+        "success": True,
+        "data": {"id": plan.id, "name": plan.name, "is_default": plan.is_default},
+        "message": f"Plan '{plan.name}' {'set as' if plan.is_default else 'removed as'} default",
+    }
+
 
 @router.patch("/activate-deactivate/{plan_id}", summary="Activate or Deactivate a plan by ID")
 async def activate_deactivate_plan(

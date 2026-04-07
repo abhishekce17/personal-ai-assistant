@@ -1,9 +1,9 @@
 import os
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from db.models import Admin, AdminRegister, Login
-from app.core.security import hash_password, verify_password, create_jwt_token
+from app.core.security import hash_password, verify_password, create_jwt_token, get_current_admin
 
 router = APIRouter()
 
@@ -33,8 +33,8 @@ async def admin_login(login: Login, request: Request, response: Response):
         httponly=True,             # ✅ JavaScript cannot read this (Security)
         max_age=60 * 60 * 24,      # 1 day in seconds
         expires=60 * 60 * 24,      # (Optional) consistency for older browsers
-        samesite="lax",            # ✅ Protects against CSRF
-        secure=is_production,      # ⚠️ Set to True if using HTTPS (Production), False for localhost (Development)
+        samesite="none",           # ✅ Required for cross-origin cookie delivery (frontend ≠ backend domain)
+        secure=True,               # ✅ Required when samesite="none" (backend must be HTTPS)
     )
 
     return {
@@ -68,5 +68,31 @@ async def admin_register(register: AdminRegister, request: Request):
     return {
         "message": "Admin registered successfully",
         "token": token,
+    }
+
+
+@router.post("/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        samesite="none",
+        secure=True,
+        httponly=True,
+    )
+    return {"message": "Admin logged out successfully"}
+
+
+@router.get("/validate")
+async def validate_admin_token(admin: Admin = Depends(get_current_admin)):
+    """
+    Validates the admin token and returns admin details.
+    """
+    return {
+        "id": admin.id,
+        "name": admin.name,
+        "email": admin.email,
+        "role_id": admin.role_id,
+        "avatar": admin.avatar,
+        "is_active": admin.is_active,
     }
 

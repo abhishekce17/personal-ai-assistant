@@ -14,10 +14,11 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from db.models import User, Plan
+from sqlalchemy import select, delete
+from db.models import User, Plan, Admin, ChatSession, ChatInteraction, UserPlanHistory, BillingInformation, FederatedIdentity, PendingState
 from utils.db import activate_row, deactivate_row
-from app.core.security import require_admin_role_ids
+from app.core.security import require_admin_role_ids, verify_password
+from pydantic import BaseModel
 from fastapi import APIRouter
 import os
 
@@ -26,6 +27,11 @@ load_dotenv()
 MASTER_ADMIN_ID = os.getenv("MASTER_ADMIN_ID")
 
 router = APIRouter()
+
+
+class PermanentDeleteRequest(BaseModel):
+    user_id: str
+    admin_password: str
 
 
 @router.get("/users", summary="List all users")
@@ -104,3 +110,43 @@ async def change_user_plan(
     await db.commit()
 
     return {"success": True, "data": None, "message": "User plan changed successfully"}
+
+
+@router.delete("/users/permanent", summary="Permanently delete a user and all related data")
+async def permanently_delete_user(
+    payload: PermanentDeleteRequest,
+    request: Request,
+    admin: Admin = Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: AsyncSession = request.state.db
+    user_id = payload.user_id
+
+    # Re-authenticate admin by verifying their password
+    verify_password(payload.admin_password, admin.password)
+
+    result = await db.execute(select(User).filter(User.id == user_id))
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Delete chat interactions via chat sessions (child table first)
+    session_thread_ids = await db.execute(
+        select(ChatSession.thread_id).filter(ChatSession.user_id == user_id)
+    )
+    thread_ids = [row[0] for row in session_thread_ids.all()]
+
+    if thread_ids:
+        await db.execute(delete(ChatInteraction).where(ChatInteraction.thread_id.in_(thread_ids)))
+
+    # Delete all related records
+    await db.execute(delete(ChatSession).where(ChatSession.user_id == user_id))
+    await db.execute(delete(UserPlanHistory).where(UserPlanHistory.user_id == user_id))
+    await db.execute(delete(BillingInformation).where(BillingInformation.user_id == user_id))
+    await db.execute(delete(FederatedIdentity).where(FederatedIdentity.user_id == user_id))
+    await db.execute(delete(PendingState).where(PendingState.user_id == user_id))
+
+    # Finally delete the user
+    await db.delete(user)
+
+    return {"success": True, "data": None, "message": "User permanently deleted"}

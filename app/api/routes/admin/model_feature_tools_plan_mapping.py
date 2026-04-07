@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from db.models import Plan, Model, PlanModel, PlanModelCreate, Tool, PlanTool, PlanToolCreate
+from db.models import Plan, Model, PlanModel, PlanModelCreate, Tool, PlanTool, PlanToolCreate, PlanModelUpdate
 from sqlalchemy import select, join
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import require_admin_role_ids
 from dotenv import load_dotenv
 import os
 
-from utils.db import activate_row, deactivate_row
+from utils.db import activate_row, deactivate_row, unset_default_for_all
 
 load_dotenv()
 
@@ -45,8 +45,25 @@ async def create_plan_model_mapping(
     if existing:
         raise HTTPException(status_code=409, detail="Mapping already exists")
 
+    # If setting as default, unset other models of the same type for this plan
+    if payload.is_default:
+        await unset_default_for_all(
+            db, 
+            PlanModel, 
+            condition=(
+                (PlanModel.plan_id == payload.plan_id) & 
+                (PlanModel.model_id.in_(
+                    select(Model.id).where(Model.model_type == model.model_type)
+                ))
+            )
+        )
+
     # Create mapping
-    mapping = PlanModel(plan_id=payload.plan_id, model_id=payload.model_id)
+    mapping = PlanModel(
+        plan_id=payload.plan_id, 
+        model_id=payload.model_id,
+        is_default=payload.is_default or False
+    )
     db.add(mapping)
     await db.commit()
     await db.refresh(mapping)
@@ -68,6 +85,7 @@ async def list_all_plan_model_mappings(
         PlanModel.created_at,
         PlanModel.updated_at,
         PlanModel.is_active,
+        PlanModel.is_default,
     ).select_from(
         join(PlanModel, Plan, PlanModel.plan_id == Plan.id).join(
             Model, PlanModel.model_id == Model.id
@@ -111,6 +129,47 @@ async def activate_deactivate_plan_model_mapping(
         return await activate_row(db, PlanModel, mapping_id)
     elif (not is_active):
         return await deactivate_row(db, PlanModel, mapping_id)
+
+@router.patch("/plan-model-update/{mapping_id}", summary="Update a Plan-Model mapping (is_default/is_active)")
+async def update_plan_model_mapping(
+    mapping_id: str,
+    payload: PlanModelUpdate,
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    db: AsyncSession = request.state.db
+
+    result = await db.execute(select(PlanModel).where(PlanModel.id == mapping_id))
+    mapping = result.scalars().first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+
+    if payload.is_active is not None:
+        mapping.is_active = payload.is_active
+
+    if payload.is_default is True:
+        # Fetch model type for context
+        result = await db.execute(select(Model).where(Model.id == mapping.model_id))
+        model = result.scalars().first()
+        
+        await unset_default_for_all(
+            db, 
+            PlanModel, 
+            condition=(
+                (PlanModel.plan_id == mapping.plan_id) & 
+                (PlanModel.model_id.in_(
+                    select(Model.id).where(Model.model_type == model.model_type)
+                ))
+            )
+        )
+        mapping.is_default = True
+    elif payload.is_default is False:
+        mapping.is_default = False
+
+    await db.commit()
+    await db.refresh(mapping)
+
+    return {"success": True, "message": "Mapping updated", "data": {"id": mapping.id, "is_default": mapping.is_default}}
 
 #----------------- Plan and Tools Mapping --------------------#
 

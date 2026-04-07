@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body, status, Re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, or_, select
 from app.core.security import get_current_user, verify_github_installation_ownership
-from db.models import User, PendingState, Tool, FederatedIdentity
+from db.models import User, PendingState, Tool, FederatedIdentity, PlanTool
 from pydantic import BaseModel
 import hashlib
 import base64
@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 class AuthLinkRequest(BaseModel):
-    platform: str
+    tool_id: str
     state_hash: str | None = None
 
 @router.post("/tool_auth_link", summary="Generate Tool Auth Link")
@@ -29,28 +29,48 @@ async def tool_auth_link(
     """
     db: AsyncSession = request.state.db
 
-    # Check if the platform exists and is active in the Tool table
-    result = await db.execute(select(Tool).where(func.lower(Tool.tool_provider) == payload.platform.lower(), Tool.is_active == True))
+    # Check if the tool exists and is active
+    result = await db.execute(select(Tool).where(Tool.id == payload.tool_id, Tool.is_active == True))
     tool = result.scalars().first()
     if not tool:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"Platform '{payload.platform}' is not supported or inactive."
+            detail="Tool not found or inactive."
         )
 
-    env_key = f"{payload.platform.upper()}_TOOL_INSTALLATION_LINK"
-    base_link = os.getenv(env_key)
-
+    base_link = tool.installation_url
     if not base_link:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Redirect link for {payload.platform} is not configured."
+            detail=f"Redirect link for {tool.tool_name} is not configured in tool settings."
+        )
+
+    # Validate that this tool is allowed by the user's current plan
+    if user.current_plan_id:
+        result = await db.execute(
+            select(PlanTool).where(
+                PlanTool.tool_id == tool.id,
+                PlanTool.plan_id == user.current_plan_id,
+                PlanTool.is_active == True
+            )
+        )
+        plan_tool_mapping = result.scalars().first()
+        if not plan_tool_mapping:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your current plan does not support the '{tool.tool_name}' tool."
+            )
+    else:
+        # If user has no plan (shouldn't happen with default plans), deny access
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must have an active plan to connect tools."
         )
 
     # Check for existing valid installation
     result = await db.execute(select(FederatedIdentity).where(
         FederatedIdentity.user_id == user.id,
-        func.lower(FederatedIdentity.provider) == payload.platform.lower(),
+        func.lower(FederatedIdentity.provider) == tool.tool_provider.lower(),
         FederatedIdentity.is_active == True,
         FederatedIdentity.installation_id != None,
         FederatedIdentity.refresh_token != None,
@@ -64,13 +84,13 @@ async def tool_auth_link(
     if existing_identity:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"User is already connected to {payload.platform}."
+            detail=f"User is already connected to {tool.tool_provider}."
         )
     
     # Check for existing pending state for this user and platform
     result = await db.execute(select(PendingState).where(
         PendingState.user_id == str(user.id),
-        PendingState.platform == payload.platform
+        PendingState.platform == tool.tool_provider
     ))
     existing_pending = result.scalars().first()
 
@@ -88,7 +108,7 @@ async def tool_auth_link(
         pending_state = PendingState(
             user_id=str(user.id),
             state_hash=payload.state_hash,
-            platform=payload.platform,
+            platform=tool.tool_provider,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
         )
         db.add(pending_state)

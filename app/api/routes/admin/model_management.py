@@ -1,9 +1,10 @@
 from dotenv import load_dotenv
 from fastapi import HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from db.models import ModelCreate, Model, ModelUpdate
-from utils.db import deactivate_row, unset_default_for_all, activate_row
+from sqlalchemy import select, func
+from db.models import ModelCreate, Model, ModelUpdate, User, PlanModel
+from utils.types import ModelType
+from utils.db import deactivate_row, activate_row
 from app.core.security import require_admin_role_ids
 from fastapi import APIRouter
 import os
@@ -29,16 +30,14 @@ async def create_model(
     if existing:
         raise HTTPException(status_code=409, detail="Model already exists")
 
-    if model_data.is_default:
-        await unset_default_for_all(db, Model)
-
     model = Model(
         model_name=model_data.model_name,
         model_description=model_data.model_description,
         model_provider=model_data.model_provider,
+        model_type=model_data.model_type,
         model_image=model_data.model_image,
         tool_support=model_data.tool_support,
-        is_default=model_data.is_default,
+        context_window=model_data.context_window,
     )
 
     db.add(model)
@@ -66,21 +65,20 @@ async def update_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
 
-    if model_data.is_default is True:
-        await unset_default_for_all(db, Model)
-
     if model_data.model_name is not None:
         model.model_name = model_data.model_name
     if model_data.model_description is not None:
         model.model_description = model_data.model_description
     if model_data.model_provider is not None:
         model.model_provider = model_data.model_provider
+    if model_data.model_type is not None:
+        model.model_type = model_data.model_type
     if model_data.model_image is not None:
         model.model_image = model_data.model_image
     if model_data.tool_support is not None:
         model.tool_support = model_data.tool_support
-    if model_data.is_default is not None:
-        model.is_default = model_data.is_default
+    if model_data.context_window is not None:
+        model.context_window = model_data.context_window
 
     await db.commit()
     await db.refresh(model)
@@ -92,15 +90,50 @@ async def update_model(
     }
 
 
+@router.get("/types", summary="Get all available model types")
+async def get_model_types(
+    request: Request,
+    admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
+):
+    return {"success": True, "data": [t.value for t in ModelType]}
+
+
 @router.get("/list", summary="List all models")
 async def list_models(
     request: Request,
     admin=Depends(require_admin_role_ids(MASTER_ADMIN_ID)),
 ):
     db: AsyncSession = request.state.db
+
+    # Fetch all models
     result = await db.execute(select(Model))
     models = result.scalars().all()
-    return {"success": True, "data": models}
+
+    # Count users per model via plan membership:
+    # ONLY count active users in active plans with active mappings to active models.
+    from db.models import Plan
+    count_result = await db.execute(
+        select(PlanModel.model_id, func.count(func.distinct(User.id)).label("cnt"))
+        .join(User, User.current_plan_id == PlanModel.plan_id)
+        .join(Plan, Plan.id == PlanModel.plan_id)
+        .join(Model, Model.id == PlanModel.model_id)
+        .where(
+            (User.is_active == True) &
+            (Plan.is_active == True) &
+            (PlanModel.is_active == True) &
+            (Model.is_active == True)
+        )
+        .group_by(PlanModel.model_id)
+    )
+    count_map = {str(row[0]).lower(): row[1] for row in count_result.all()}
+
+    data = []
+    for model in models:
+        row_dict = {c.name: getattr(model, c.name) for c in Model.__table__.columns}
+        row_dict["user_count"] = count_map.get(str(model.id).lower(), 0)
+        data.append(row_dict)
+
+    return {"success": True, "data": data}
 
 
 @router.delete("/delete/{model_id}", summary="Delete a model")

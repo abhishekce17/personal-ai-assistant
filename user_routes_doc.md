@@ -12,12 +12,12 @@ These routes are mounted on the main `app` instance with specific prefixes.
 
 ## 2. User Management (`user.py`) - `/user`
 
-| Method   | Path             | Description               | Payload Data (Body/Query)                                                           | Return Schema                                           |
-| :------- | :--------------- | :------------------------ | :---------------------------------------------------------------------------------- | :------------------------------------------------------ |
-| `GET`    | `/user/me`       | Get Current User Details. | **None**                                                                            | `{"user": UserObject, "success": bool}`                 |
-| `POST`   | `/user/update`   | Update User Profile.      | **Query**: `name` (opt), `email` (opt), `avatar_id` (opt), `default_model_id` (opt) | `{"success": bool, "user": UserObject, "message": str}` |
-| `PUT`    | `/user/password` | Update Password.          | **Query**: `old_password`, `new_password`                                           | `{"success": bool, "data": null, "message": str}`       |
-| `DELETE` | `/user/delete`   | Delete Personal Account.  | **Query**: `password`                                                               | `204 No Content`                                        |
+| Method   | Path             | Description               | Payload Data (Body/Query)                                 | Return Schema                                           |
+| :------- | :--------------- | :------------------------ | :-------------------------------------------------------- | :------------------------------------------------------ |
+| `GET`    | `/user/me`       | Get Current User Details. | **None**                                                  | `{"user": UserObject, "success": bool}`                 |
+| `POST`   | `/user/update`   | Update User Profile.      | **Query**: `name` (opt), `email` (opt), `avatar_id` (opt) | `{"success": bool, "user": UserObject, "message": str}` |
+| `PUT`    | `/user/password` | Update Password.          | **Query**: `old_password`, `new_password`                 | `{"success": bool, "data": null, "message": str}`       |
+| `DELETE` | `/user/delete`   | Delete Personal Account.  | **Query**: `password`                                     | `204 No Content`                                        |
 
 ## 3. Static Data (`staticdata.py`) - `/staticdata`
 
@@ -49,14 +49,15 @@ These routes are mounted on the main `app` instance with specific prefixes.
 
 ## 5. Tool Authentication (`tool_auth_link.py`) - `/tool-auth`
 
-| Method | Path                        | Description              | Payload Data (Body/Query)                              | Return Schema                              |
-| :----- | :-------------------------- | :----------------------- | :----------------------------------------------------- | :----------------------------------------- |
-| `POST` | `/tool-auth/tool_auth_link` | Generate Tool Auth Link. | **Body**: `{"platform": str, "state_hash": str (opt)}` | `{"redirect_url": str, "pending_id": str}` |
+| Method | Path                        | Description              | Payload Data (Body/Query)                             | Return Schema                              |
+| :----- | :-------------------------- | :----------------------- | :---------------------------------------------------- | :----------------------------------------- |
+| `POST` | `/tool-auth/tool_auth_link` | Generate Tool Auth Link. | **Body**: `{"tool_id": str, "state_hash": str (opt)}` | `{"redirect_url": str, "pending_id": str}` |
 
 ## 6. Tool Management (`tools_management.py`) - `/tool-management`
 
-| Method   | Path                                                     | Description                          | Payload Data (Body/Query)                                                                                            | Return Schema                                     |
-| :------- | :------------------------------------------------------- | :----------------------------------- | :------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------ |
-| `POST`   | `/tool-management/tool_auth_callback`                    | Finalize Tool Link (OAuth Callback). | **Body**: `{"platform": str, "installation_id": int, "code": str, "refresh_token": str (opt), "code_verifier": str}` | `{"success": bool, "data": null, "message": str}` |
-| `DELETE` | `/tool-management/uninstall_app/{installation_id}`       | Uninstall a Tool/App.                | **Path**: `installation_id` (enc_str)                                                                                | `{"success": bool, "data": null, "message": str}` |
-| `PATCH`  | `/tool-management/activate-deactivate/{installation_id}` | Activate or Deactivate a Tool.       | **Path**: `installation_id` (enc_str)<br>**Query**: `is_active` (bool)                                               | `{"success": bool, "data": null, "message": str}` |
+| Method   | Path                                                     | Description                                                | Payload Data (Body/Query)                                                                                            | Return Schema                                                                                                                         |
+| :------- | :------------------------------------------------------- | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/tool-management/list_available_tools`                  | List all active tools with plan availability for the user. | None                                                                                                                 | `{"success": bool, "data": [{"id": str, "name": str, "description": str, "provider": str, "image": str, "is_available": bool}, ...]}` |
+| `POST`   | `/tool-management/tool_auth_callback`                    | Finalize Tool Link (OAuth Callback).                       | **Body**: `{"platform": str, "installation_id": int, "code": str, "refresh_token": str (opt), "code_verifier": str}` | `{"success": bool, "data": null, "message": str}`                                                                                     |
+| `DELETE` | `/tool-management/uninstall_app/{installation_id}`       | Uninstall a Tool/App.                                      | **Path**: `installation_id` (enc_str)                                                                                | `{"success": bool, "data": null, "message": str}`                                                                                     |
+| `PATCH`  | `/tool-management/activate-deactivate/{installation_id}` | Activate or Deactivate a Tool.                             | **Path**: `installation_id` (enc_str)<br>**Query**: `is_active` (bool)                                               | `{"success": bool, "data": null, "message": str}`                                                                                     |

@@ -5,14 +5,18 @@ from app.api.routes.admin import (
 )
 from app.api.routes.user import authentication, user, chat_management, chat_interaction, tool_auth_link, tools_management, staticdata, feature_flag
 from app.api.middlewares.db import db_session_middleware_with_exception_handling
-from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management, feature_flag_management
+from app.api.routes.admin import model_feature_tools_plan_mapping, user_management, tool_management, staticdata_management, feature_flag_management, monitoring
 # from app.api.routes.webhook import tool_installation
 from app.services.agent_lifecycle import lifespan
 from app.api.routes.admin import plan_management
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from dotenv import load_dotenv
 import uvicorn
+import os
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ app = FastAPI(lifespan=lifespan)
 admin = FastAPI(lifespan=lifespan)
 
 origins = [
-    "http://localhost:3000",
+os.getenv("ALLOWED_ORIGIN")
 ]
 
 # CORS for main app
@@ -79,6 +83,7 @@ admin.include_router(user_management.router, prefix="/user-management", tags=["U
 admin.include_router(tool_management.router, prefix="/tool-management", tags=["Tool Management"])
 admin.include_router(staticdata_management.router, prefix="/staticdata-management", tags=["Static Data Management"])
 admin.include_router(feature_flag_management.router, prefix="/feature-flag-management", tags=["Feature Flag Management"])
+admin.include_router(monitoring.router, prefix="/monitoring", tags=["Monitoring"])
 app.mount(path="/admin", app=admin, name="Admin")
 
 
